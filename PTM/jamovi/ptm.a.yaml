@@ -1,0 +1,132 @@
+---
+name:  PTM
+title: Plot The Model
+menuGroup: Plot The Model
+version: '1.0.0'
+jas: '1.2'
+
+options:
+    - name: data
+      type: Data
+
+    - name: dep
+      title: Response (Dependent) Variable
+      type: Variable
+
+    - name: factor1
+      title: Factor 1
+      type: Variable
+
+    - name: factor2
+      title: Factor 2
+      type: Variable
+
+    - name: block
+      title: Block (or batch) ID
+      type: Variable
+
+    - name: nest
+      title: Nest ID
+      type: Variable
+
+    - name: design
+      title: Experimental Design
+      type: List
+      options:
+        - title: CRD
+          name:  crd
+        - title: CRDS
+          name:  crds
+        - title: RCBD
+          name:  rcbd
+        - title: RCBDS
+          name:  rcbds
+        - title: GRCBD
+          name:  grcbd
+        - title: GRCBDS
+          name:  grcbds
+        - title: SPD
+          name:  spd
+        - title: GSPD
+          name:  gspd
+      default: crd
+
+    - name: model
+      title: Model
+      type: List
+      options:
+        - title: Fixed Effects Model (lm)
+          name:  lm
+        - title: Linear Mixed Model (lmer)
+          name:  lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  aov_4
+      default: lm
+
+    - name: subplot
+      title: If Split Plot...
+      type: List
+      options:
+        - title: Factor 1 is subplot
+          name:  subplot.eq.1
+        - title: factor 2 is subplot
+          name:  subplot.eq.2
+      default: subplot.eq.1
+
+    - name: trtvsctrl
+      title: Treatment vs. Control (one factor only)
+      type: Bool
+      default: false
+
+    - name: simple
+      title: Simple Effects (two factors only)
+      type: Bool
+      default: true
+
+    - name: adjust
+      title: Adjust p-values
+      type: List
+      options:
+        - title: Default
+          name:  default
+        - title: None
+          name:  none
+        - title: Holm
+          name:  holm
+        - title: FDR
+          name:  fdr
+      default: default
+
+    - name: pal
+      title: Color palette
+      type: List
+      options:
+        - title: ggPlot
+          name:  pal_ggplot
+        - title: Okabe Ito
+          name:  pal_okabe_ito
+        - title: Okabe Ito Blue
+          name:  pal_okabe_ito_blue
+        - title: Nature
+          name:  pal_npg
+        - title: Science
+          name:  pal_aaas
+        - title: JCO
+          name:  pal_jco
+        - title: Frontiers
+          name:  pal_frontiers
+      default: pal_okabe_ito
+
+    - name: tech_reps
+      title: (For nested data) Show technical replicates
+      type: Bool
+      default: false
+
+    - name: join_blocks
+      title: (For paired/blocked data) Join Blocks
+      type: Bool
+      default: false
+
+
+
+...

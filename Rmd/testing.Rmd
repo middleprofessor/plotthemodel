@@ -1,0 +1,273 @@
+---
+title: "testing the module"
+author: "Jeffrey Walker"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# wrangling packages
+library(here) # here makes a project transportable
+library(janitor) # clean_names
+library(readxl) # read excel, duh!
+library(data.table) # magical data frames
+library(magrittr) # pipes
+library(stringr) # string functions
+library(forcats) # factor functions
+
+# analysis packages
+library(emmeans) # the workhorse for inference
+library(nlme) # gls and some lmm
+library(lme4) # linear mixed models
+library(lmerTest) # linear mixed model inference
+library(afex) # ANOVA linear models
+library(glmmTMB) # generalized linear models
+library(MASS) # negative binomial and some other functions
+library(car) # model checking and ANOVA
+library(DHARMa) # model checking
+library(mvtnorm)
+library(MHTdiscrete) # sidak
+
+# graphing packages
+library(ggsci) # color palettes
+library(ggpubr) # publication quality plots
+library(ggforce) # better jitter
+library(cowplot) # combine plots
+library(knitr) # kable tables
+library(kableExtra) # kable_styling tables
+
+# ggplot_the_model.R packages not loaded above
+library(insight)
+library(lazyWeave)
+
+# use here from the here package
+here <- here::here
+# use clean_names from the janitor package
+clean_names <- janitor::clean_names
+# use transpose from data.table
+transpose <- data.table::transpose
+
+# load functions used by this text written by me
+# ggplot_the_model.R needs to be in the folder "R"
+# if you didn't download this and add to your R folder in your
+# project, then this line will cause an error
+source_path <- here("R", "ggplot_the_model.R")
+source(source_path)
+
+data_folder <- "data"
+image_folder <- "images"
+output_folder <- "output"
+```
+
+```{r import_data}
+file_path <- here(data_folder, "fig3g.xlsx")
+fig3 <- read_xlsx(file_path) |>
+    data.table()
+```
+
+
+
+```{r}
+m1 <- lm(ucp1 ~ tx * surgery, data = fig3)
+m1_emm <- emmeans(m1, specs = c("tx", "surgery"))
+m1_all <- contrast(m1_emm,
+                     method = "revpairwise",
+                     adjust = "none") |>
+    summary(infer = TRUE)
+m1_simple <- contrast(m1_emm,
+                     method = "revpairwise",
+                     adjust = "none",
+                     simple = "each") |>
+    summary(infer = TRUE)
+
+m1_emm
+m1_all
+m1_simple
+```
+
+```{r plotdata_full}
+
+m1 <- lm(ucp1 ~ surgery * tx, data = fig3)
+m1_emm <- emmeans(m1, specs = c("surgery", "tx"))
+m1_all <- contrast(m1_emm,
+                     method = "revpairwise",
+                     adjust = "none") |>
+    summary(infer = TRUE)
+m1_simple <- contrast(m1_emm,
+                     method = "revpairwise",
+                     adjust = "none",
+                     simple = "each",
+                     combine = TRUE) |>
+    summary(infer = TRUE)
+m1_pairs <- m1_all
+two_factors <- TRUE
+fig3[, surgery := factor(surgery, levels = c("YFP", "Cre"))]
+fig3[, tx := factor(tx, levels = c("SAL", "OHDA"))]
+
+           plotData_full <- data.table(
+                dataset = "experimental_reps", # change this to technical_reps if nested
+                y = fig3$ucp1,
+                factor_1 = fig3$surgery
+            )
+            if(two_factors == FALSE){
+                plotData_full[, factor_2 := factor_1]
+                plotData_full[, plot_factor := factor_1]
+            }else{
+                plotData_full[, factor_2 := fig3$tx]
+                plotData_full[, plot_factor := paste(factor_1, factor_2,
+                                                     sep = "\n")]
+                # reorder factor levels for 2-factor plots
+                levels_1 <- levels(plotData_full$factor_1) |>
+                    as.character()
+                levels_2 <- levels(plotData_full$factor_2) |>
+                    as.character()
+                levels_table <- expand.grid(levels_1, levels_2, stringsAsFactors = FALSE) |>
+                    data.table()
+                levels_table[, plot_levels := paste(Var1, Var2, sep = "\n")]
+                plotData_full[, plot_factor := factor(plot_factor,
+                                                 levels = levels_table[, plot_levels])]
+            }
+            # if(is.na(self$options$cluster)){
+            #     plotData_full[, cluster_id := NA]
+            # }else{
+            #     plotData_full[, cluster_id := self$data[[self$options$cluster]]]
+            # }
+            plotData_full[, mean := as.numeric(NA)]
+            plotData_full[, SE := as.numeric(NA)]
+            plotData_full[, lo := as.numeric(NA)]
+            plotData_full[, hi := as.numeric(NA)]
+
+            # fit plot
+            m1_plot <- lm(y ~ plot_factor, plotData_full)
+            emm_plot <- emmeans(m1_plot, specs = "plot_factor")
+            if(two_factors == FALSE){
+                pairs_plot <- m1_pairs |>
+                    data.table()
+            }else{
+                pairs_plot <- contrast(emm_plot,
+                                       method = "revpairwise",
+                                       adjust = "none") |>
+                    summary(infer = TRUE) |>
+                    data.table()
+
+                if(plot_simple == TRUE){
+                    # keep simple effects only
+                    levels_1 <- levels(plotData_full$factor_1) |>
+                        as.character()
+                    levels_2 <- levels(plotData_full$factor_2) |>
+                        as.character()
+                    p1 <- length(levels_1)
+                    p2 <- length(levels_2)
+                    pp <- p1*p2
+                    rows_list <- numeric(pp)
+                    j <- 0
+                    for(i in 1:(pp/2)){
+                        j <- j + 1
+                        a <- i
+                        b <- (pp * (pp - 1))/2 - i + 1
+                        rows_list[j] <- a
+                        j <- j + 1
+                        rows_list[j] <- b
+                    }
+                    pairs_plot <- pairs_plot[rows_list,]
+                }
+                new_contrast_col <- pairs_plot[, contrast]
+                pairs_plot <- m1_pairs |>
+                    data.table()
+                pairs_plot[, contrast := new_contrast_col]
+            }
+            setnames(pairs_plot, old = "SE", new = "SED")
+
+            # fill out summary table for means and error bars
+            y_cols <- c("y", "factor_1", "factor_2", "plot_factor", "mean", "SE", "lo", "hi")
+            plotData_summary <- data.table(
+                y = as.numeric(NA),
+                factor_1 = NA,
+                factor_2 = NA,
+ #               cluster_id = NA,
+                summary(emm_plot)
+            )
+            setnames(plotData_summary,
+                     old = c("emmean", "lower.CL", "upper.CL"),
+                     new = c("mean", "lo", "hi"))
+            plotData_summary <- plotData_summary[, .SD, .SDcols = y_cols]
+
+            # combine summary and full data because ggplot in jmv can
+            # only take a single dataset
+            plotData <- rbind(plotData_summary, plotData_full)
+
+
+```
+
+```{r}
+            m1 <- lm(ucp1 ~ surgery * tx, fig3)
+            m1_emm <- emmeans(m1, specs = c("surgery", "tx"))
+            m1_pairs <- contrast(m1_emm,
+                                 method = "revpairwise",
+                                 adjust = "none") |>
+                summary(infer = TRUE)
+
+            m2 <- lmer(ucp1 ~ surgery * tx + (1 | ear_tag), fig3)
+            m2_emm <- emmeans(m2, specs = c("surgery", "tx"))
+            m2_pairs <- contrast(m2_emm,
+                                 method = "revpairwise",
+                                 adjust = "none") |>
+                summary(infer = TRUE)
+           
+m1_pairs
+m2_pairs
+```
+
+# Test CRDS
+
+```{r}
+filename <- "crds.xlsx"
+file_path <- here(data_folder, filename)
+fd <- read_excel(file_path) |>
+    data.table()
+fd[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+
+m1 <- lmer(diameter ~ genotype + (1 | mouse), data = fd)
+fd_means <- fd[, .(diameter = mean(diameter)), by = .(mouse, genotype)]
+fd_means[, b1 := ifelse(genotype == "Control", 0, coef(summary(m1))[2,1])]
+m1_intercept <- data.table(
+    mouse = row.names(coef(m1)$mouse),
+    intercept = coef(m1)$mouse[, 1]
+)
+fd_means <- merge(fd_means, m1_intercept, by = "mouse")
+fd_means[, mean := intercept + b1]    
+fd_means[, diff := mean - diameter]
+ggplot(data = fd_means,
+       aes(x = diameter,
+           y = diff)) +
+    geom_point()
+
+fd_means <- fd[, .(diameter = mean(diameter)), by = .(mouse, genotype)]
+temp <- predict(m1, fd_means)
+fd_means[, yhat := predict(m1, fd_means)]
+
+m1_random_coef <- coef(m1)[[1]]
+cluster_means <- data.table(
+    dataset = "cluster_means",
+    y = m1_random_coef[, 1] + coef(summary)
+)
+
+
+plotData_full <- data.table(
+    dataset = "experimental_reps", # change this to technical_reps if nested
+    y = fd$diameter,
+    factor_1 = fd$genotype
+)
+plotData_full[, factor_2 := factor_1]
+plotData_full[, plot_factor := factor_1]
+plotData_full[, block_id := NA]
+plotData_full[, nest_id := fd$mouse]
+plotData_full[, mean := as.numeric(NA)]
+plotData_full[, SE := as.numeric(NA)]
+plotData_full[, lo := as.numeric(NA)]
+plotData_full[, hi := as.numeric(NA)]
+```
+
+

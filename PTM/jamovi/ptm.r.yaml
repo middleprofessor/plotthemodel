@@ -1,0 +1,34 @@
+---
+name:  PTM
+title: Plot The Model
+jrs:   '1.1'
+
+items:
+    - name: plot
+      title: Plot the Model
+      type: Image
+      width: 400
+      height: 300
+      renderFun: .plot
+
+    - name: model
+      title: Model
+      type: Preformatted
+
+    - name: model_notes
+      title: Model Notes
+      type: Preformatted
+
+    - name:  coef
+      title: Model coefficients
+      type:  Preformatted
+
+    - name:  emm
+      title: Estimated Model Means
+      type:  Preformatted
+
+    - name:  contrasts
+      title: Model Contrasts
+      type:  Preformatted
+
+...

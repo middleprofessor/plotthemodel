@@ -1,0 +1,2751 @@
+---
+title: "Creating Fake Data for Plot the Model using the GRCBDS simulator"
+author: "Jeffrey Walker"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Background
+
+The fake data generated to demonstrate Plot the Model is motivated by
+
+[Xu, Zhisheng, et al. "Disuse-associated loss of the protease LONP1 in muscle impairs mitochondrial function and causes reduced skeletal muscle mass and strength." Nature Communications 13.1 (2022): 894.](https://www.nature.com/articles/s41467-022-28557-5)
+
+LONP1 is a protease (a protein that breaks down other proteins) expressed in the mitochondrial matrix (the fluid of the inner compartment of the mitochondria). Muscle atrophy due to disuse is correlated with lower LONP1 expression. Does LONP1 maintain muscle health (size and strength)?
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# wrangling packages
+library(here) # here makes a project transportable
+library(janitor) # clean_names
+library(readxl) # read excel, duh!
+library(writexl) # read excel, duh!
+library(data.table) # magical data frames
+library(magrittr) # pipes
+library(stringr) # string functions
+library(forcats) # factor functions
+
+# analysis packages
+library(emmeans) # the workhorse for inference
+library(nlme) # gls and some lmm
+library(lme4) # linear mixed models
+library(lmerTest) # linear mixed model inference
+library(afex) # ANOVA linear models
+library(glmmTMB) # generalized linear models
+library(MASS) # negative binomial and some other functions
+library(car) # model checking and ANOVA
+library(DHARMa) # model checking
+library(mvtnorm)
+library(MHTdiscrete) # sidak
+
+# graphing packages
+library(ggsci) # color palettes
+library(ggpubr) # publication quality plots
+library(ggforce) # better jitter
+library(cowplot) # combine plots
+library(knitr) # kable tables
+library(kableExtra) # kable_styling tables
+
+# ggplot_the_model.R packages not loaded above
+library(insight)
+library(lazyWeave)
+
+# use here from the here package
+here <- here::here
+# use clean_names from the janitor package
+clean_names <- janitor::clean_names
+# use transpose from data.table
+transpose <- data.table::transpose
+
+# load functions used by this text written by me
+# ggplot_the_model.R needs to be in the folder "R"
+# if you didn't download this and add to your R folder in your
+# project, then this line will cause an error
+source_path <- here("R", "ggplot_the_model.R")
+source(source_path)
+
+data_folder <- "data"
+image_folder <- "images"
+output_folder <- "output"
+```
+
+# CRD - 2 x 1 (t-test)
+
+The researchers want to estimate the effect of LONP1 on muscle cross-sectional area (CSA). For the experiment, the researchers randomly sample 12 female mice, each from a different litter, and randomly assign 6 mice to Control (with functional LONP1) and 6 mice to mKO (muscle specific LONP1 knock-out).
+
+This is a Completely Randomized Design (CRD) with a single factor (Treatment) with two levels (Control and mKO). The classic test for this is Student's (or Independent Samples) t-Test, which is a special case of a Linear Model.
+
+For PlotTheModel, use
+
+1. Experimental Design = CRD
+2. 
+
+```{r fake-2x1-crd}
+seed <- 1
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 2, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(2400, -800),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = 400, # among mouse variance
+  sigma_ss = 0, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, "sim_1", "csa") # cross-sectional area
+fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
+fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+m1 <- lm(csa ~ genotype, data = fake_data)
+m1_emm <- emmeans(m1, specs = "genotype")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+outfile_name <- "crd2.xlsx"
+outpath <- here(data_folder, outfile_name)
+y_cols <- c("mouse", "genotype", "csa")
+write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
+```
+
+# CRD - 3 x 1 (ANOVA)
+
+```{r fake-3x1-crd}
+seed <- 1
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(2400, -900, -800),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = 400, # among mouse variance
+  sigma_ss = 0, # among technical reps within mouse.
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, c("treatment", "sim_1"), c("fake_treatment", "csa")) # cross-sectional area
+fake_data[fake_treatment == "Cn", treatment := "Control"]
+fake_data[fake_treatment == "Tr1", treatment := "Denerv"]
+fake_data[fake_treatment == "Tr2", treatment := "mKO"]
+fake_data[, treatment := factor(treatment, levels = c("Control", "Denerv", "mKO"))]
+m1 <- lm(csa ~ treatment, data = fake_data)
+m1_emm <- emmeans(m1, specs = "treatment")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+outfile_name <- "crd3.xlsx"
+outpath <- here(data_folder, outfile_name)
+y_cols <- c("mouse", "treatment", "csa")
+write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
+```
+
+
+# CRD - 2 x 2 (Twoway ANOVA)
+
+```{r fake-2x2-crd}
+seed <- 1
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 4, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(2400, -800, -700, -1200),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = 400, # among mouse variance
+  sigma_ss = 0, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, c("treatment", "sim_1"), c("fake_treatment", "csa")) # cross-sectional area
+fake_data[fake_treatment == "Cn", treatment := "Intact\nLONP1"]
+fake_data[fake_treatment == "Tr1", treatment := "Denerv\nLONP1"]
+fake_data[fake_treatment == "Tr2", treatment := "Intact\nmKO"]
+fake_data[fake_treatment == "Tr3", treatment := "Denerv\nmKO"]
+fake_data[, c("surgery", "genotype") := tstrsplit(treatment, "\n")]
+fake_data[, treatment := factor(treatment, levels = c("Intact\nLONP1", "Denerv\nLONP1", "Intact\nmKO", "Denerv\nmKO"))]
+m1 <- lm(csa ~ treatment, data = fake_data)
+m1_emm <- emmeans(m1, specs = "treatment")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+outfile_name <- "crd2x2.xlsx"
+outpath <- here(data_folder, outfile_name)
+y_cols <- c("mouse", "surgery", "genotype", "treatment", "csa")
+write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
+```
+
+# CRDS - 2 x 1 (Nested)
+
+Here the response is myotube diameter. 80 myotubes per mouse were meaasured. See fig5h
+
+```{r fake-crds}
+seed <- 1
+# sigma_e^2 = sigma_rep^2 + sigma_ss^2
+# icc = sigma_rep^2 / sigma_e^2
+icc <- 0.6
+sigma_e <- 2
+sigma_rep <- sqrt(icc*sigma_e^2)
+sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 2, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 80, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(21, -3),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = sigma_rep, # among mouse variance
+  sigma_ss = sigma_ss, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, c("ss", "sim_1"), c("technical_rep", "diameter")) # cross-sectional area
+fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
+fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+m1 <- lm(diameter ~ genotype, data = fake_data)
+m1_emm <- emmeans(m1, specs = "genotype")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+outfile_name <- "crds.xlsx"
+outpath <- here(data_folder, outfile_name)
+y_cols <- c("mouse", "technical_rep", "genotype", "diameter")
+write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
+```
+
+# RCBD - 2 x 1 (paired t-test)
+
+# RCBD - 3 x 1 (RM-ANOVA)
+
+# RCBD - 2 x 2 (RM-ANOVA)
+
+# SPD - 2 x 2 (RM-ANOVA)
+
+# SPD - 3 x 2 (RM-ANOVA)
+
+# RCBDS - 2 groups
+
+# RCBDS - 3 groups
+
+# GRCBD - 2 groups
+
+# GRCBD - 3 groups
+
+
+
+## CRDS
+
+```{r fake_crds}
+set.seed(1)
+fake_crds <- simulator(
+  seed_i = 1,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 5, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = TRUE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 1, -0.5),
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+```
+
+### balanced
+
+All models have same statistics.
+
+```{r fake_crds-balanced, warning=FALSE, message = FALSE}
+# models
+lmm1 <- lmer(sim_1 ~ treatment + (1 | mouse),
+              data = fake_crds)
+
+aov1 <- aov_4(sim_1 ~ treatment + (1 | mouse),
+              data = fake_crds)
+
+fake_crds_means <- fake_crds[, .(sim_1 = mean(sim_1)),
+                             by = .(treatment, mouse)]
+lm1 <- lm(sim_1 ~ treatment,
+              data = fake_crds_means)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+# report
+table_dt <- rbind(lmm1_pairs,
+                  aov1_pairs,
+                  lm1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 3) %>%
+  pack_rows("aov1 - ANOVA", 4, 6) %>%
+  pack_rows("lm1 - lm on means", 7, 9)
+```
+
+### unbalanced
+
+mouse 1 deleted has no consequence. All models have same statistics.
+
+```{r fake_crds_unbalanced, warning=FALSE, message=FALSE}
+fake_crds_missing <- fake_crds[batch != "batch_1"]
+
+# models
+
+lmm1 <- lmer(sim_1 ~ treatment + (1 | mouse),
+              data = fake_crds_missing)
+
+aov1 <- aov_4(sim_1 ~ treatment + (1 | mouse),
+              data = fake_crds_missing)
+
+fake_crds_means <- fake_crds_missing[, .(sim_1 = mean(sim_1)),
+                             by = .(treatment, mouse)]
+lm1 <- lm(sim_1 ~ treatment,
+              data = fake_crds_means)
+
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  aov1_pairs,
+                  lm1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 3) %>%
+  pack_rows("aov1 - ANOVA", 4, 6) %>%
+  pack_rows("lm1 - lm on means", 7, 9)
+```
+
+## RCBD
+
+1. 2 treatments, equal variance
+
+```{r seed_starter}
+seed_starter <- 0
+```
+
+```{r fake_rcbd-2-treats-balanced}
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_treat = 2, # number of treatment levels
+  n_block = 10, # number of litters (blocks)
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 1),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.block.treat = c(0), # sd among exp:block:treat
+  sigma_ss = 0.5, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd)
+
+lmm2 <- lme(sim_1 ~ treatment,
+            random = ~1 | block,
+            correlation = corSymm(form = ~ 1 | block),
+            weights = varIdent(form = ~ 1 | treatment),
+              data = fake_rcbd)
+            
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd)
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "litter",
+                           data = fake_rcbd)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 1) %>%
+  pack_rows("lmm2 - heterogenous variance", 2, 2) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 3, 3) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 4, 4) %>%
+  pack_rows("lm1 - additive lm", 5, 5) %>%
+  pack_rows("ttest1 - paired t", 6, 6)
+
+```
+
+unbalanced
+
+```{r fake-rcbd-2-treats-unbalanced}
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_treat = 2, # number of treatment levels
+  n_block = 10, # number of litters (blocks)
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 1),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.block.treat = c(0), # sd among exp:block:treat
+  sigma_ss = 0.5, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+fake_rcbd <- fake_rcbd[-c(1), ]
+# fake_rcbd <- fake_rcbd[-c(1, 3), ]
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd)
+
+lmm2 <- lme(sim_1 ~ treatment,
+            random = ~1 | block,
+            correlation = corSymm(form = ~ 1 | block),
+            weights = varIdent(form = ~ 1 | treatment),
+              data = fake_rcbd)
+            
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd)
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "litter",
+                           data = fake_rcbd)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 1) %>%
+  pack_rows("lmm2 - heterogenous variance", 2, 2) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 3, 3) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 4, 4) %>%
+  pack_rows("lm1 - additive lm", 5, 5) %>%
+  pack_rows("ttest1 - paired t", 6, 6)
+```
+
+balanced with heterogeneity
+
+```{r fake_rcbd-2-treats-hetero}
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_treat = 2, # number of treatment levels
+  n_block = 10, # number of litters (blocks)
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 1),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.block.treat = c(0.5), # sd among exp:block:treat
+  sigma_ss = 0.5, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd)
+
+lmm2 <- lme(sim_1 ~ treatment,
+            random = ~1 | block,
+            correlation = corSymm(form = ~ 1 | block),
+            weights = varIdent(form = ~ 1 | treatment),
+              data = fake_rcbd)
+            
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd)
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "litter",
+                           data = fake_rcbd)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 1) %>%
+  pack_rows("lmm2 - heterogenous variance", 2, 2) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 3, 3) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 4, 4) %>%
+  pack_rows("lm1 - additive lm", 5, 5) %>%
+  pack_rows("ttest1 - paired t", 6, 6)
+
+```
+
+```{r fake_rcbd-3-treatments-balanced}
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_treat = 3, # number of treatment levels
+  n_block = 10, # number of litters (blocks)
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 1, 0.5),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_ss = 0.8, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+# models
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd)
+
+lmm2 <- lme(sim_1 ~ treatment,
+            random = ~1 | block,
+            correlation = corSymm(form = ~ 1 | block),
+            weights = varIdent(form = ~ 1 | treatment),
+              data = fake_rcbd)
+            
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd)
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "litter",
+                           data = fake_rcbd)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 3) %>%
+  pack_rows("lmm2 - heterogenous variance", 4, 6) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 7, 9) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 10, 12) %>%
+  pack_rows("lm1 - additive lm", 13, 15) %>%
+  pack_rows("ttest1 - paired t", 16, 18)
+
+```
+
+### check understanding (what are the coefficients?)
+
+```{r}
+fake_rcbd <- simulator(
+  seed_i = 3,
+  n_treat = 2, # number of treatment levels
+  n_block = 5, # number of litters (blocks)
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 1, 0.5),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_ss = 0.5, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block), data = fake_rcbd)
+b <- coef(summary(lmm1))[, "Estimate"]
+b0 <- b[1]
+mean(fake_rcbd[treatment == "Cn", sim_1])
+
+b0j <- ranef(lmm1)$block[, 1]
+
+data.table(
+  treatment = fake_rcbd[treatment == "Cn", treatment],
+  treatment = fake_rcbd[treatment == "Cn", block],
+  y = fake_rcbd[treatment == "Cn", sim_1],
+  b0 = b[1],
+  b0j = b0j,
+  y_recon = b[1] +  b0j
+  )
+
+# hmm so random intercept is not a function of ref only
+
+m1 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, y_res := residuals(m1)]
+fake_rcbd[, .(y_res = mean(y_res)), by = block]
+
+res_y <- fake_rcbd[, .(y_res = mean(y_res)), by = block]$y_res
+res_cn <- fake_rcbd[treatment == "Cn", .(y_res = mean(y_res)), by = block]$y_res
+res_tr1 <- fake_rcbd[treatment == "Tr1", .(y_res = mean(y_res)), by = block]$y_res
+res_tr2 <- fake_rcbd[treatment == "Tr2", .(y_res = mean(y_res)), by = block]$y_res
+
+data.table(
+  block = 1:5,
+  b0j = b0j,
+  res_y = res_y,
+  res_cn = res_cn,
+  res_tr1 = res_tr1,
+  res_tr2 = res_tr2
+)
+
+# the estimated random intercepts are "shrunken" effects - duh!!!!
+
+
+```
+
+
+### unbalanced
+
+mouse_04 from litter_02 is missing. The ANOVA models delete all litter_02 data (mouse_05 and mouse_06) -- as a consequence the df is lower and power is lower.
+
+```{r fake_rcbd-unbalanced}
+ex_list <- c("mouse_04")
+in_list <- setdiff(unique(fake_rcbd$mouse), ex_list)
+fake_rcbd_missing <- fake_rcbd[mouse %in% in_list]
+
+# models
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd_missing)
+# lmm2a <- lme(sim_1 ~ treatment,
+#             random = ~1 | block,
+#             correlation = corSymm(form = ~ 1 | block),
+#             weights = varIdent(form = ~ 1 | treatment),
+#             data = fake_rcbd_missing)
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd_missing)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd_missing)
+
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "litter",
+                           data = fake_rcbd_missing)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 3) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 4, 6) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 7, 9) %>%
+  pack_rows("lm1 - additive lm", 10, 12) %>%
+  pack_rows("ttest1 - paired t-tests", 13, 15)
+```
+
+### Litter_02 deletion
+
+```{r fake_rcbd-litter2-deletion}
+ex_list <- c("mouse_04")
+in_list <- setdiff(unique(fake_rcbd$mouse), ex_list)
+fake_rcbd_missing <- fake_rcbd[mouse %in% in_list]
+
+fake_rcbd_missing <- fake_rcbd[litter != "litter_02"]
+
+# models
+lmm1 <- lmer(sim_1 ~ treatment + (1 | block),
+              data = fake_rcbd_missing)
+# lmm2a <- lme(sim_1 ~ treatment,
+#             random = ~1 | block,
+#             correlation = corSymm(form = ~ 1 | block),
+#             weights = varIdent(form = ~ 1 | treatment),
+#             data = fake_rcbd_missing)
+# lmm2b <- lme(sim_1 ~ treatment,
+#              random = ~1 | block,
+#              correlation = corCompSymm(form = ~ 1 | block),
+#              weights = varIdent(form = ~ 1 | treatment),
+#              control = lmeControl(opt='optim'),
+#              #            control = lmeControl(maxIter = 1e3),
+#              data = fake_rcbd_missing)
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | block),
+              data = fake_rcbd_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | block),
+           include_aov = TRUE,
+              data = fake_rcbd_missing)
+
+lm1 <- lm(sim_1 ~ treatment + block,
+              data = fake_rcbd_missing)
+
+# contrasts
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm1_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm1 - random intercept", 1, 3) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 4, 6) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 7, 9) %>%
+  pack_rows("lm1 - additive lm", 10, 12)
+```
+
+## GRCBD
+
+```{r fake_grcbd}
+seed_starter <- 5
+fake_grcbd <- simulator(
+  seed_i = seed_starter,
+  n_treat = 3, # number of treatment levels
+  n_block = 6, # number of litters (blocks)
+  n_rep = 3, # number of mice per experiment:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  beta = c(10, 3, 2),
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.block.treat = c(2, 1, 0.2),
+  sigma_rep = 0.1,
+  sigma_ss = 0.5, # sd among subsamples within replication of treatment:block
+  block_name = "experiment",
+  rep_name = "mouse",
+  ss_name = "ss"
+
+)
+
+```
+
+### check understanding (what are the coefficients?)
+
+```{r}
+lmm0 <- lmer(sim_1 ~ treatment + (1 | block), data = fake_grcbd)
+lmm1 <- lmer(sim_1 ~ treatment + (treatment | block), data = fake_grcbd)
+b <- coef(summary(lmm1))[, "Estimate"]
+b0 <- b[1]
+b0
+mean(fake_grcbd[treatment == "Cn", sim_1])
+
+b0j <- ranef(lmm1)
+
+data.table(
+  treatment = fake_grcbd[treatment == "Cn", treatment],
+  treatment = fake_grcbd[treatment == "Cn", block],
+  y = fake_grcbd[treatment == "Cn", sim_1],
+  b0 = b[1],
+  b0j = rep(b0j$block[, 1], each = 3),
+  y_recon = b[1] +  rep(b0j$block[, 1], each = 3)
+  )
+
+# hmm so random intercept is not a function of ref only
+
+m1 <- lm(sim_1 ~ treatment, data = fake_grcbd)
+fake_grcbd[, y_res := residuals(m1)]
+fake_grcbd[treatment == "Cn", .(y = mean(sim_1)), by = block]
+
+fake_grcbd[, .(y_res = mean(y_res)), by = block]
+
+ranef(lmm0)
+ranef(lmm1)
+# the estimated random intercepts are "shrunken" effects - duh!!!!
+
+res_y <- fake_grcbd[, .(y_res = mean(y_res)), by = block]$y_res
+res_cn <- fake_grcbd[treatment == "Cn", .(y_res = mean(y_res)), by = block]$y_res
+res_tr1 <- fake_grcbd[treatment == "Tr1", .(y_res = mean(y_res)), by = block]$y_res
+res_tr2 <- fake_grcbd[treatment == "Tr2", .(y_res = mean(y_res)), by = block]$y_res
+
+data.table(
+  block = 1:5,
+  b0j = b0j$block[, 1],
+  res_y = res_y,
+  res_cn = res_cn,
+  res_tr1 = res_tr1,
+  res_tr2 = res_tr2
+)
+
+type3 <- list(treatment = contr.sum,
+              block = contr.sum)
+
+lm1 <- lm(sim_1 ~ treatment * block, data = fake_grcbd, contrasts = type3)
+coef(summary(lm1))
+```
+
+### balanced
+
+```{r fake_grcbd-balanced}
+# models
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | experiment),
+               data = fake_grcbd)
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | experiment) + (1 | experiment:treatment),
+               data = fake_grcbd)
+
+fake_grcbd_means <- fake_grcbd[, .(sim_1 = mean(sim_1)), by = .(experiment, treatment)]
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | experiment),
+               data = fake_grcbd_means)
+lmm2 <- lme(sim_1 ~ treatment,
+             random = ~1 | experiment,
+             correlation = corSymm(form = ~ 1 | experiment),
+             weights = varIdent(form = ~ 1 | treatment),
+             data = fake_grcbd_means)
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | experiment),
+              fun_aggregate = mean,
+              data = fake_grcbd)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | experiment),
+              fun_aggregate = mean,
+              include_aov = TRUE,
+              data = fake_grcbd)
+
+lm1 <- lm(sim_1 ~ treatment * experiment,
+               data = fake_grcbd)
+
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "experiment",
+                           data = fake_grcbd)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov12 - univariate RM ANOVA", 16, 18) %>%
+  pack_rows("lm1 - fixed effects model", 19, 21) %>%
+  pack_rows("ttest1 - paired t-tests", 22, 24)
+```
+
+```{r grcbd-varcorr, eval=FALSE, echo=FALSE}
+VarCorr(lmm3)
+VarCorr(lmm4)
+```
+
+### unbalanced
+
+If there is a missing treatment level in one experiment (this is common in the lit), then AOV throws out the whole experiment, ignoring data from the other treatment levels.
+
+If only a single mouse from a treatment is missing, the whole experiment is not thrown out because other measures in that treatment:experiment combo are present.
+
+```{r fake_grcbd-unbalanced}
+ex_list <- c("mouse_04")
+in_list <- setdiff(unique(fake_grcbd$mouse), ex_list)
+fake_grcbd_missing <- fake_grcbd[mouse %in% in_list]
+
+# missing Cn from experiment_01
+ex_list <- c("mouse_01", "mouse_02", "mouse_03")
+in_list <- setdiff(unique(fake_grcbd$mouse), ex_list)
+fake_grcbd_missing <- fake_grcbd[mouse %in% in_list]
+
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | experiment),
+               data = fake_grcbd_missing)
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | experiment) + (1 | experiment:treatment),
+               data = fake_grcbd_missing)
+
+fake_grcbd_means <- fake_grcbd_missing[, .(sim_1 = mean(sim_1)), by = .(experiment, treatment)]
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | experiment),
+               data = fake_grcbd_means)
+lmm2 <- lme(sim_1 ~ treatment,
+             random = ~1 | experiment,
+             correlation = corSymm(form = ~ 1 | experiment),
+             weights = varIdent(form = ~ 1 | treatment),
+             data = fake_grcbd_means,
+            control = lmeControl(returnObject = TRUE))
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | experiment),
+              fun_aggregate = mean,
+              data = fake_grcbd_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | experiment),
+              fun_aggregate = mean,
+              include_aov = TRUE,
+              data = fake_grcbd_missing)
+
+lm1 <- lm(sim_1 ~ treatment + experiment,
+               data = fake_grcbd_means)
+
+ttest1_pairs <- pairwise_t_tests(y_col = "sim_1",
+                           g_col = "treatment",
+                           id_col = "experiment",
+                           data = fake_grcbd_missing)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs,
+                  lm1_pairs,
+                  ttest1_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 16, 18) %>%
+  pack_rows("lm1 - fixed effect model", 19, 21) %>%
+  pack_rows("ttest1 - paired t-tests", 22, 24)
+```
+
+### Delete all experiment_01
+
+```{r fake_grcbd-unbalanced-2}
+fake_grcbd_missing <- fake_grcbd[experiment != "experiment_01"]
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | experiment) + (1 | experiment:treatment),
+               data = fake_grcbd_missing)
+
+fake_grcbd_means <- fake_grcbd_missing[, .(sim_1 = mean(sim_1)), by = .(experiment, treatment)]
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | experiment),
+               data = fake_grcbd_means)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | experiment),
+           include_aov = TRUE,
+              data = fake_grcbd_missing)
+
+# contrasts
+
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+
+table_dt <- rbind(lmm4_pairs,
+                  lmm1_pairs,
+                  aov2_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random interaction intercept", 1, 3) %>%
+  pack_rows("lmm4 - aggregated random intercept", 4, 6) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 7, 9)
+```
+
+## RCBDS
+
+```{r fake_rcbds}
+seed_starter <- 1
+seed_starter <- seed_starter + 1
+fake_rcbds <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 6, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 5, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = TRUE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 1, -1),
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+```
+
+### balanced
+
+```{r fake_rcbds-balanced}
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds)
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | litter) + (1 | litter:treatment),
+               data = fake_rcbds)
+
+fake_rcbds_means <- fake_rcbds[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment, mouse)]
+fake_rcbds_means <- fake_rcbds_means[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment)]
+
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | litter),
+               data = fake_rcbds_means)
+lmm2 <- lme(sim_1 ~ treatment,
+             random = ~1 | litter,
+             correlation = corSymm(form = ~ 1 | litter),
+             weights = varIdent(form = ~ 1 | treatment),
+             data = fake_rcbds_means)
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+           include_aov = TRUE,
+              data = fake_rcbds)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept 1", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 16, 18)
+```
+
+### unbalanced 1
+
+```{r fake_rcbds-unbalanced}
+ex_list <- c("mouse_04")
+in_list <- setdiff(unique(fake_rcbds$mouse), ex_list)
+fake_rcbds_missing <- fake_rcbds[mouse %in% in_list]
+
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | litter) + (1 | litter:treatment),
+               data = fake_rcbds_missing)
+
+fake_rcbds_means <- fake_rcbds_missing[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment, mouse)]
+fake_rcbds_means <- fake_rcbds_means[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment)]
+
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | litter),
+               data = fake_rcbds_means)
+lmm2 <- lme(sim_1 ~ treatment,
+            random = ~1 | litter,
+            correlation = corSymm(form = ~ 1 | litter),
+            weights = varIdent(form = ~ 1 | treatment),
+            data = fake_rcbds_means,
+            control = lmeControl(returnObject = TRUE))
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+           include_aov = TRUE,
+              data = fake_rcbds_missing)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept 1", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 16, 18)
+```
+
+### delete litter_02
+
+```{r fake_rcbds-deletion}
+ex_list <- c("mouse_04")
+in_list <- setdiff(unique(fake_rcbds$mouse), ex_list)
+fake_rcbds_missing <- fake_rcbds[mouse %in% in_list]
+fake_rcbds_missing <- fake_rcbds[litter != "litter_02"]
+
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | litter) + (1 | litter:treatment),
+               data = fake_rcbds_missing)
+
+fake_rcbds_means <- fake_rcbds_missing[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment, mouse)]
+fake_rcbds_means <- fake_rcbds_means[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment)]
+
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | litter),
+               data = fake_rcbds_means)
+lmm2 <- lme(sim_1 ~ treatment,
+             random = ~1 | litter,
+             correlation = corSymm(form = ~ 1 | litter),
+             weights = varIdent(form = ~ 1 | treatment),
+             data = fake_rcbds_means)
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+           include_aov = TRUE,
+              data = fake_rcbds_missing)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept 1", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 16, 18)
+```
+### unbalanced 2
+
+```{r fake_rcbds-unbalanced-2}
+N <- nrow(fake_rcbds)
+inc <- sample(1:N, (N-10))
+fake_rcbds_missing <- fake_rcbds[inc]
+fake_rcbds_means <- fake_rcbds_missing[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment, mouse)]
+fake_rcbds_means[, .(N = .N),
+                   by = .(treatment, litter)]
+
+lmm3 <-  lmer(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+
+lmm4 <-  lmer(sim_1 ~ treatment + (1 | litter) + (1 | litter:treatment),
+               data = fake_rcbds_missing)
+
+fake_rcbds_means <- fake_rcbds_missing[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment, mouse)]
+fake_rcbds_means <- fake_rcbds_means[, .(sim_1 = mean(sim_1)),
+                               by = .(litter, treatment)]
+
+lmm1 <-  lmer(sim_1 ~ treatment + (1 | litter),
+               data = fake_rcbds_means)
+lmm2 <- lme(sim_1 ~ treatment,
+             random = ~1 | litter,
+             correlation = corSymm(form = ~ 1 | litter),
+             weights = varIdent(form = ~ 1 | treatment),
+             data = fake_rcbds_means,
+            control = lmeControl(returnObject = TRUE))
+
+aov1 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+               data = fake_rcbds_missing)
+aov2 <- aov_4(sim_1 ~ treatment + (treatment | litter),
+           include_aov = TRUE,
+              data = fake_rcbds_missing)
+
+# contrasts
+
+lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm4_pairs <- emmeans(lmm4, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm1_pairs <- emmeans(lmm1, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+  contrast(method = "revpairwise", adjust = "none") %>%
+  summary(infer = TRUE)
+
+table_dt <- rbind(lmm3_pairs,
+                  lmm4_pairs,
+                  lmm1_pairs,
+                  lmm2_pairs,
+                  aov1_pairs,
+                  aov2_pairs)
+
+table_dt %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("lmm3 - random slope & intercept", 1, 3) %>%
+  pack_rows("lmm4 - random interaction intercept 1", 4, 6) %>%
+  pack_rows("lmm1 - aggregated random intercept", 7, 9) %>%
+  pack_rows("lmm2 - aggregated heterogenous variance", 10, 12) %>%
+  pack_rows("aov1 - multivariate RM ANOVA", 13, 15) %>%
+  pack_rows("aov2 - univariate RM ANOVA", 16, 18)
+```
+
+# Assumptions of linear mixed models
+
+The models make different assumptions about the correlated error and these, in turn, make models fit to the data more or less conservative (More conservative is fewer false positives at the expense of power. Less conservative is more false positives but a gain in power). What are these assumptions?
+
+Assumption list:
+
+1. variances of the Cn, Tr1, and Tr2 residuals are the same (covariance matrix below)
+2. the 3 correlations among the Cn, Tr1, and Tr2 residual are the same (figure 1 below and correlation matrix)
+3. there is no block:treatment interaction, that is, no random slopes (figure 2 below)
+4. there is no correlation between random intercepts and random slopes
+
+Model assumptions
+
+1. lmm1 -- assumes 1-4
+2. lmm2 -- is highly flexible. As coded, it makes no assumptions (or maybe 4?)
+3. lmm3 -- assumes 1, 2, 4
+4. lmm4 -- none
+5. aov1 -- none
+6. aov2 -- assumes 1, 2, 4
+
+
+## Correlated error
+
+This is a RCBD simulation with 50 litters. Three sibs within each litter are randomly assigned to treatment (t = 3 treatment levels). The data in the plots are the residuals of the linear model y ~ treatment. These residuals are correlated. If the cn mouse from litter 14 has a high residual, the tr1 and tr2 residuals are probably also high. If the cn mouse from litter 27 has a low residual, the tr1 and tr2 residuals are probably also low.
+
+```{r correlation-assumpation, caption = "Scatterplot of residuals of linear model y ~ treatment showing correlated error. The data simulate an RCBD with 50 litters and three mice per litter assigned to the three treatment levels."}
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 50, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0, 0),
+  gamma = c(0.5, 0.5, 0.5), # sd of random intercept and slopes for non-ref
+  rho = 0.0, # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 0, # sd among exp:block:treat
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, y_res := residuals(m1)]
+fake_rcbd_wide <- dcast(fake_rcbd,
+                        litter ~ treatment,
+                        value.var = "y_res")
+gg1 <- ggplot(data = fake_rcbd_wide,
+              aes(x = Cn, y = Tr1)) +
+  geom_point()
+gg2 <- ggplot(data = fake_rcbd_wide,
+              aes(x = Cn, y = Tr2)) +
+  geom_point()
+gg3 <- ggplot(data = fake_rcbd_wide,
+              aes(x = Tr1, y = Tr2)) +
+  geom_point()
+plot_grid(gg1, gg2, gg3, nrow = 2)
+
+# covij <- 1^2
+# sdi <- sqrt(1^2 + 0.6^2)
+# covij/sdi^2
+# 
+# y_cols <- c("Cn", "Tr1", "Tr2")
+# cov(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+#   kable(digits = 3,
+#         caption = "Covariance matrix of residuals") %>%
+#   kable_styling(full_width = FALSE)
+# cor(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+#   kable(digits = 3,
+#         caption = "Correlation matrix of residuals") %>%
+#   kable_styling(full_width = FALSE)
+
+```
+
+
+This is the same simulation but with 1000 blocks so that the covariance/correlation estimates have low error. Two sets of covariance and correlation matrices are shown.
+
+In the first set, the variances of the residuals are about 1.4 for each treatment (these are on the diagonal of the covariance matrix) and the correlations are about 0.74 for each pair (these are the off-diagonal of the correlation matrix).
+
+In the second set, the variances of the residuals differ for each treatment (these are on the diagonal of the covariance matrix) and the correlations differ for each pair (these are the off-diagonal of the correlation matrix).
+
+```{r covariance-assumpation-1}
+seed_starter <- 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter + 1,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 1000, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0, 0),
+  gamma = c(0.5, 0.5, 0.5), # sd of random intercept and slopes for non-ref
+  rho = 0.0, # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 0, # sd among exp:block:treat
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, y_res := residuals(m1)]
+fake_rcbd_wide <- dcast(fake_rcbd,
+                        litter ~ treatment,
+                        value.var = "y_res")
+
+# covij <- 1^2
+# sdi <- sqrt(1^2 + 0.6^2)
+# covij/sdi^2
+# 
+y_cols <- c("Cn", "Tr1", "Tr2")
+cov(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Covariance matrix of residuals, simulation 1") %>%
+  kable_styling(full_width = FALSE)
+cor(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Correlation matrix of residuals, simulation 1") %>%
+  kable_styling(full_width = FALSE)
+
+fake_rcbd <- simulator(
+  seed_i = seed_starter + 1,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 1000, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0, 0),
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = c(1, 0, 0.5), # sd among exp:block:treat
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, y_res := residuals(m1)]
+fake_rcbd_wide <- dcast(fake_rcbd,
+                        litter ~ treatment,
+                        value.var = "y_res")
+
+# covij <- 1^2
+# sdi <- sqrt(1^2 + 0.6^2)
+# covij/sdi^2
+# 
+y_cols <- c("Cn", "Tr1", "Tr2")
+cov(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Covariance matrix of residuals, simulation 2") %>%
+  kable_styling(full_width = FALSE)
+cor(fake_rcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Correlation matrix of residuals, simulation 2") %>%
+  kable_styling(full_width = FALSE)
+
+```
+
+
+
+## block:treatment interaction (random slopes)
+
+This is a GRCBD simulation with 3 experiments. Each experiment is a typical CRD with three treatment levels and 10 mice assigned to each. Experiment is the block. There is experimental replication of treatment level within each block so the design is GRCBD.
+
+In the first simulation, there is no block:treatment interaction. The experiment_03 mice have relatively high glucose in all three treatments. Note that the slopes within an experiment are all close to zero.
+
+In the second simulation, there is a block:treatment interaction. The experiment_03 mice have kinda high glucose in experiment_01, really high glucose in experiment_02, and intermediate glucose in experiment_03. Note that the slopes within an experiment differ both among experiments within a pair of treatments and among pairs of treatments within an experiment. That is, "random slopes" arise from a block:treatment interaction.
+
+```{r}
+seed_starter <- 1
+seed_starter <- seed_starter + 1
+fake_grcbd <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 3, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0,0),
+  gamma = c(1,1, 0), # sd of random intercept and slopes for non-ref
+  rho = 0.0, # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 0, # sd among exp:block:treat
+  # sigma_slope = 0 # creates variation in sigma_exp.block among treatments
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "experiment",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lm(sim_1 ~ treatment, data = fake_grcbd)
+fake_grcbd[, glucose_residual := residuals(m1)]
+y_cols <- c("Cn", "Tr1", "Tr2")
+fake_grcbd_wide <- dcast(fake_grcbd,
+                        experiment + rep ~ treatment,
+                        value.var = "glucose_residual")
+cov(fake_grcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Covariance matrix of residuals") %>%
+  kable_styling(full_width = FALSE)
+cor(fake_grcbd_wide[, .SD, .SDcols = y_cols]) %>%
+  kable(digits = 3,
+        caption = "Correlation matrix of residuals") %>%
+  kable_styling(full_width = FALSE)
+
+
+pd <- position_dodge(0.3)
+gg1 <- ggplot(data = fake_grcbd,
+              aes(x = treatment,
+                  y = glucose_residual,
+                  color = experiment)) +
+  geom_point(position = pd) +
+  theme_pubr() +
+  scale_color_manual(values = pal_okabe_ito)
+
+
+seed_starter <- seed_starter + 1
+fake_grcbd <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 3, # number of litters (blocks)
+  n_rep = 10, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0),
+  gamma = c(1,1, 0), # sd of random intercept and slopes for non-ref
+  rho = 0.0, # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 1, # sd among exp:block:treat
+  # sigma_slope = 0 # creates variation in sigma_exp.block among treatments
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "experiment",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lm(sim_1 ~ treatment, data = fake_grcbd)
+fake_grcbd[, glucose_residual := residuals(m1)]
+
+gg2 <- ggplot(data = fake_grcbd,
+              aes(x = treatment,
+                  y = glucose_residual,
+                  color = experiment)) +
+  geom_point(position = pd) +
+  theme_pubr() +
+  scale_color_manual(values = pal_okabe_ito) +
+  NULL
+
+plot_grid(gg1, gg2, ncol = 2)
+```
+
+
+## No correlation between random slope and intercept
+
+A correlation between a random intercept and slope means that blocks with higher intercepts have more positive slopes and blocks with lower intercepts have less positive slopse. There will be a correlation between the intercept and each of the slopes and between the each of the slopes. So for an experiment with three treatment levels, there will be a correlation between the random intercept and random slope of Tr1, a correlation between the random intercept and random slope of  Tr2, and correlation between the random slopes of Tr1 and Tr2. 
+
+```{r random-slopes, warning=FALSE, message=FALSE, error=FALSE}
+seed_starter <- 5
+seed_starter <- seed_starter + 1
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 500, # number of litters (blocks)
+  n_rep = 10, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = TRUE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0),
+  gamma = c(1,1, 1), # sd of random intercept and slopes for non-ref
+  rho = c(0.0, 0, 0), # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 1, # sd among exp:block:treat
+  # sigma_slope = 0 # creates variation in sigma_exp.block among treatments
+  sigma_rep = 0,
+  sigma_ss = 0.6, # sd among subsamples within replication of treatment:block
+  block_name = "experiment",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+
+m1 <- lmer(sim_1 ~ treatment + (treatment | experiment), data = fake_rcbd)
+coef(m1)$experiment[1:10, ]
+cor(coef(m1)$experiment)
+VarCorr(m1)
+
+m2 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, glucose_residuals := residuals(m2)]
+fake_rcbd_wide <- dcast(fake_rcbd,
+                        experiment + rep ~ treatment,
+                        value.var = "glucose_residuals")
+
+
+inc <- 1:90
+pd <- position_dodge(0.3)
+gg1 <- ggplot(data = fake_rcbd[inc],
+              aes(x = treatment,
+                  y = glucose_residuals,
+                  color = experiment)) +
+  geom_point(position = pd) +
+  theme_pubr()
+
+fake_rcbd <- simulator(
+  seed_i = seed_starter,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 500, # number of litters (blocks)
+  n_rep = 10, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = TRUE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0),
+  gamma = c(0.5, 0.5, 0.5), # sd of random intercept and slopes for non-ref
+  rho = c(0.9, 0.2, 0.2), # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = 1, # sd among exp:block:treat
+  # sigma_slope = 0 # creates variation in sigma_exp.block among treatments
+  sigma_rep = 0,
+  sigma_ss = 0.3, # sd among subsamples within replication of treatment:block
+  block_name = "experiment",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+m1 <- lmer(sim_1 ~ treatment + (treatment | experiment), data = fake_rcbd)
+coef(m1)$experiment[1:10, ]
+cov(coef(m1)$experiment)
+cor(coef(m1)$experiment)
+VarCorr(m1)
+
+m2 <- lm(sim_1 ~ treatment, data = fake_rcbd)
+fake_rcbd[, glucose_residuals := residuals(m2)]
+gg2 <- ggplot(data = fake_rcbd[inc],
+              aes(x = treatment,
+                  y = glucose_residuals,
+                  color = experiment)) +
+  geom_point(position = pd) +
+  theme_pubr()
+
+plot_grid(gg1, gg2, ncol = 2)
+```
+
+
+# Performance
+
+```{r}
+  pless <- function(x){
+    value <- sum(x < 0.05, na.rm=TRUE)/length(na.omit(x))
+    return(value)
+  }
+
+```
+
+## RCBD
+**The experimental design**
+
+1. The design is RCBD. There are 10 blocks, each with 3 treatment levels. There is 1 replicate of each treatment in each block. Examples are
+    * Three mice are sampled from each of 10 litters. Within each litter, one mouse is assigned to Cn, one to Tr1, and one to Tr2. Litter is the block.
+    * Three cultures are randomly assigned to one Cn, one Tr1, and one Tr2. The experiment is replicated 10 times. Experiment is the block.
+2. The design is balanced.
+
+**The simulation**
+
+1. Simulation performance is measured as the Type I error rate ("size")
+2. Four scenarios are simulated
+    * Moderate correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Small correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Moderate correlated error. Homogenous variance and correlation (compound symmetry error covariance)
+    * No correlated error. Homogenous variance (standard lm assumptions)
+
+**The models**
+
+1. lm0: linear model with treatment as the single factor
+3. aov1: multivariate repeated measures ANOVA
+4. aov2: univariate repeated measures ANOVA
+5. pptt: pairwise, paired t-test
+6. lmm2: linear mixed model with heterogeneity.
+
+Notes on models
+
+1. lmm3 (random intercept and slope) is not simulated because the inference is the same as aov1, which is quicker
+2. lmm4 (random interaction intercept, aka split plot model) is not simulated because the inference is the same as aov2, which is quicker
+3. pptt has same inference as aov1 but including it
+
+```{r rcbd_performance, warning=FALSE, message=FALSE, eval=FALSE}
+set.seed(1)
+n_sims <- 1000
+fake_rcbd <- simulator(
+  seed_i = 1,
+  n_sim = n_sims,
+  n_treat = 3, # number of treatment levels
+  n_block = 6, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0, 0),
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = c(2, 1, 0.2), # sd among exp:block:treat
+  # sigma_slope = 0 # creates variation in sigma_exp.block among treatments
+  sigma_rep = 1,
+  sigma_ss = 0.1, # sd among subsamples within replication of treatment:block
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+
+
+p_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = 4)
+for(i in 1:n_sims){
+  
+  form_lm <- paste(paste0("sim_", i), "~ treatment") %>%
+    formula()
+  form_aov <- paste(paste0("sim_", i), "~ treatment + (treatment | litter)") %>%
+    formula()
+  lm0 <- lm(form_lm, data = fake_rcbd)
+  aov2 <- aov_4(form_aov,
+                include_aov = TRUE,
+                data = fake_rcbd)
+  lmm2 <- lme(form_lm,
+              random = ~1 | litter,
+              correlation = corSymm(form = ~ 1 | litter),
+              weights = varIdent(form = ~ 1 | treatment),
+              data = fake_rcbd) %>%
+    try()
+  if(inherits(lmm2, "try-error")){
+    lmm2 <- NULL
+  }
+
+  lm0_pairs <- emmeans(lm0, specs = "treatment") %>%
+    contrast(method = "revpairwise", adjust = "none")
+  aov1_pairs <- emmeans(aov2, specs = "treatment", model = "multivariate") %>%
+    contrast(method = "revpairwise", adjust = "none")
+  aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+    contrast(method = "revpairwise", adjust = "none")
+  if(!is.null(lmm2)){
+    lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+      contrast(method = "revpairwise", adjust = "none")
+      p_mat[i, 4] <- summary(lmm2_pairs)[1, "p.value"]
+  }else{
+      p_mat[i, 4] <- as.numeric(NA)
+  }
+    
+  p_mat[i, 1] <- summary(lm0_pairs)[1, "p.value"]
+  p_mat[i, 2] <- summary(aov1_pairs)[1, "p.value"]
+  p_mat[i, 3] <- summary(aov2_pairs)[1, "p.value"]
+  
+}
+
+colnames(p_mat) <- c("lm0", "aov1", "aov2", "lmm2")
+pless <- function(x){
+  value <- sum(x < 0.05, na.rm=TRUE)/length(na.omit(x))
+  return(value)
+}
+apply(p_mat, 2, pless)
+length(na.omit(p_mat[,4]))
+```
+
+```{r rcbd-performance-sim, warning=FALSE, message=FALSE, error=FALSE}
+seed_starter <- 1
+n_sims <- 1000
+do_sim <- FALSE
+
+param_sets <- 3
+treatment_levels <- c("Cn", "Tr1", "Tr2")
+model_levels <- c("lm0", "lm1", "aov1", "aov2", "pptt", "lmm2")
+  
+p1_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p2_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p3_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+r_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = 3)
+
+# parameters
+beta_i = c(10, 0, 0)
+
+# each row is different param_set
+sigma_exp.block.treat_matrix <- matrix(c(
+  c(2, 1, 0.2),
+  c(0.5, .25, 0.05),
+  c(0, 0, 0),
+  c(0, 0, 0)
+), nrow = 3, ncol = 4) %>%
+  t()
+colnames(sigma_exp.block.treat_matrix) <- treatment_levels
+
+# each value is different param_set
+sigma_exp.block_list <- c(1, 0.25, 0.8, 0)
+
+# each value is different param_set
+sigma_ss_list <- c(.1, .4, .4, 1)
+
+param_set_matrix <- data.table(
+  sim_id = 1:length(sigma_exp.block_list),
+  sigma_block = sigma_exp.block_list,
+  sigma_exp.block.treat_matrix,
+  sigma_ss = sigma_ss_list
+)
+
+res_table <- matrix(as.numeric(NA), nrow = nrow(param_set_matrix), ncol = 15)
+sim_table <- data.table(NULL)
+big_table <- data.table(NULL)
+
+if(do_sim == TRUE){
+  for(param_set in 1:nrow(param_set_matrix)){
+    sigma_exp.block_i <- param_set_matrix[param_set, sigma_block]
+    sigma_exp.block.treat_i <- param_set_matrix[param_set, .SD, .SDcols = treatment_levels] %>% as.numeric()
+    sigma_ss_i <- param_set_matrix[param_set, sigma_ss]
+    sigma_rep_i <- 0.1
+    sigma_exp.treat_i <- 0
+    sigma_exp_i <- 0
+    n_treat_i <- 3
+    n_block_i <- 10
+    n_rep_i <- 1
+    n_ss_i <- 1
+    fake_rcbd <- simulator(
+      seed_i = seed_starter,
+      n_sim = n_sims,
+      n_treat = n_treat_i, # number of treatment levels
+      n_block = n_block_i, # number of litters (blocks)
+      n_rep = n_rep_i, # number of mice per litter:treatment
+      n_ss = n_ss_i, # number of subsamples
+      design = "rcbd",
+      correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+      beta = beta_i,
+      gamma = c(1, 1, 0), # sd of random intercept and slopes for non-ref
+      rho = 0.0, # r between random intercept and slopes
+      sigma_exp = sigma_exp_i, # sd among experiments
+      sigma_exp.block = sigma_exp.block_i, # sd among exp:block (or block if n_exp = 1)
+      sigma_exp.treat = sigma_exp.treat_i, # sd among exp:treat
+      sigma_exp.block.treat = sigma_exp.block.treat_i, # sd among exp:block:treat
+      sigma_rep = sigma_rep_i,
+      sigma_ss = sigma_ss_i, # sd among subsamples within replication of treatment:block
+      # sigma_exp = 0, # sd among experiments
+      # sigma_exp.block = 0.1, # sd among exp:block (or block if n_exp = 1)
+      # sigma_exp.treat = 0, # sd among exp:treat
+      # sigma_exp.block.treat = c(0.1, 0.1, 0.1), # sd among exp:block:treat
+      # sigma_rep = 0.1,
+      # sigma_ss = 1, # sd among subsamples within replication of treatment:block
+      block_name = "experiment",
+      rep_name = "mouse",
+      ss_name = "ss",
+    )
+    
+    for(i in 1:n_sims){
+      
+      # models
+      form_lm0 <- paste(paste0("sim_", i), "~ treatment") %>%
+        formula()
+      form_lm1 <- paste(paste0("sim_", i), "~ treatment + experiment") %>%
+        formula()
+      form_aov <- paste(paste0("sim_", i), "~ treatment + (treatment | experiment)") %>%
+        formula()
+      lm0 <- lm(form_lm0, data = fake_rcbd)
+      lm1 <- lm(form_lm1, data = fake_rcbd)
+      lmm2 <- lme(form_lm0,
+                  random = ~1 | experiment,
+                  correlation = corSymm(form = ~ 1 | experiment),
+                  weights = varIdent(form = ~ 1 | treatment),
+                  data = fake_rcbd) %>%
+        try()
+      if(inherits(lmm2, "try-error")){
+        lmm2 <- NULL
+      }
+      
+      # aov2 used for both multivariate (aov1) and univariate (aov2)
+      aov2 <- aov_4(form_aov,
+                    fun_aggregate = mean,
+                    include_aov = TRUE,
+                    data = fake_rcbd)
+      fake_rcbd_means <- fake_rcbd[, .(sim_1 = mean(get(paste0("sim_", i)))),
+                                     by = .(treatment, experiment)]
+      
+      pptt_pairs <- pairwise_t_tests(y_col = "sim_1",
+                              g_col = "treatment",
+                              id_col = "experiment",
+                              data = fake_rcbd_means)
+      
+      lm0_pairs <- emmeans(lm0, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov1_pairs <- emmeans(aov2, specs = "treatment", model = "multivariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      
+      fake_rcbd[, y_res := residuals(lm0)]
+      fake_rcbd_wide <- dcast(fake_rcbd,
+                               experiment + rep ~ treatment,
+                               value.var = "y_res")
+      residual_correlations <- cor(fake_rcbd_wide[, .SD, .SDcols = treatment_levels])
+      r_mat[i, 1] <- residual_correlations[2,1]
+      r_mat[i, 2] <- residual_correlations[3,1]
+      r_mat[i, 3] <- residual_correlations[3,2]
+      
+      lm0_p <- summary(lm0_pairs)[, "p.value"]
+      lm1_p <- summary(lm1_pairs)[, "p.value"]
+      aov1_p <- summary(aov1_pairs)[, "p.value"]
+      aov2_p <- summary(aov2_pairs)[, "p.value"]
+      pptt_p <- pptt_pairs[, p.value]
+      
+      p1_mat[i, 1] <- lm0_p[1]
+      p1_mat[i, 2] <- lm1_p[1]
+      p1_mat[i, 3] <- aov1_p[1]
+      p1_mat[i, 4] <- aov2_p[1]
+      p1_mat[i, 5] <- pptt_p[1]
+      
+      p2_mat[i, 1] <- lm0_p[2]
+      p2_mat[i, 2] <- lm1_p[2]
+      p2_mat[i, 3] <- aov1_p[2]
+      p2_mat[i, 4] <- aov2_p[2]
+      p2_mat[i, 5] <- pptt_p[2]
+      
+      p3_mat[i, 1] <- lm0_p[3]
+      p3_mat[i, 2] <- lm1_p[3]
+      p3_mat[i, 3] <- aov1_p[3]
+      p3_mat[i, 4] <- aov2_p[3]
+      p3_mat[i, 5] <- pptt_p[3]
+      
+      if(!is.null(lmm2)){
+        lmm2_pairs <- emmeans(lmm2, specs = "treatment") %>%
+          contrast(method = "revpairwise", adjust = "none")
+        p1_mat[i, 6] <- summary(lmm2_pairs)[1, "p.value"]
+        p2_mat[i, 6] <- summary(lmm2_pairs)[2, "p.value"]
+        p3_mat[i, 6] <- summary(lmm2_pairs)[3, "p.value"]
+      }else{
+        p1_mat[i, 6] <- lm1_p[1]
+        p2_mat[i, 6] <- lm1_p[2]
+        p3_mat[i, 6] <- lm1_p[3]
+      }
+
+      
+    }
+    
+    sim_table <- cbind(r_mat, p1_mat, p2_mat, p3_mat)
+    sim_table_names <- paste(rep(model_levels, 3),
+          rep(c("contrast_1", "contrast_2", "contrast_3"), each = length(model_levels)),
+          sep = "_")
+    colnames(sim_table) <- c("r21", "r31", "r32", sim_table_names)
+    
+    big_table <- rbind(
+      big_table,
+      data.table(
+        sim_id = param_set,
+        n_treat = n_treat_i,
+        n_block = n_block_i,
+        n_rep = n_rep_i,
+        n_ss = n_ss_i,
+        sigma_block = sigma_exp.block_i,
+        sigma_block.treat_1 = sigma_exp.block.treat_i[1],
+        sigma_block.treat_2 = sigma_exp.block.treat_i[2],
+        sigma_block.treat_3 = sigma_exp.block.treat_i[3],
+        sigma_exp.treat = sigma_exp.treat_i,
+        sigma_rep = sigma_rep_i,
+        sigma_exp = sigma_exp_i,
+        sigma_ss = sigma_ss_i,
+        sim_table
+      )
+    )
+  } # end sim
+  
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "rcbd.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  saveRDS(object = big_table, file = save_file_path)
+  
+}else{
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "rcbd.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  big_table <- readRDS(save_file_path)
+} # end do_sim
+
+
+out_table <- data.table(NULL)
+for(param_set in 1:nrow(param_set_matrix)){
+  r_mat <- big_table[sim_id == param_set, .SD, .SDcols = c("r21", "r31", "r32")]
+  p1_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_1")]
+  p2_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_2")]
+  p3_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_3")]
+  out_table <- rbind(
+    out_table,
+    data.table(
+      contrast = c("Cn, Tr1", "Cn, Tr2", "Tr1, Tr2"),
+      cor = apply(r_mat, 2, mean),
+      rbind(apply(p1_mat, 2, pless),
+            apply(p2_mat, 2, pless),
+            apply(p3_mat, 2, pless))
+    ))
+}
+
+setnames(out_table,
+         names(out_table),
+         c("Contrast", "Cor Error", model_levels))
+out_table %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("sim 1 - high correlated error", 1, 3) %>%
+  pack_rows("sim 2 - low correlated error", 4, 6) %>%
+  pack_rows("sim 3 - equal correlated error", 7, 9) %>%
+  pack_rows("sim 4 - zero correlated error", 10, 12)
+
+```
+
+## GRCBD
+### Balanced
+
+**The experimental design**
+
+1. The design is GRCBD. There are 10 blocks, each with 3 treatment levels. There are 2 replicates of each treatment in each block. Examples are
+    * Six mice are sampled from 10 litters. Within each litter, 2 are assigned to Cn, 2 to Tr1, and 2 to Tr2. Litter is the block.
+    * 6 cultures are randomly assigned to 2 Cn, 2 Tr1, and 2 Tr2. The experiment is replicated 10 times. Experiment is the block.
+2. The design is balanced.
+
+**The simulation**
+
+1. Simulation performance is measured as the Type I error rate ("size")
+2. Four scenarios are simulated
+    * Moderate correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Small correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Moderate correlated error. Homogenous variance and correlation (compound symmetry error covariance)
+    * No correlated error. Homogenous variance (standard lm assumptions)
+
+**The models**
+
+1. lm0: linear model with treatment as the single factor
+2. lm1: fixed effect model; treatment * block
+3. aov1: multivariate repeated measures ANOVA
+4. aov2: univariate repeated measures ANOVA
+5. pptt: pairwise, paired t-test
+
+Notes on models
+
+1. lmm3 (random intercept and slope) is not simulated because the inference is the same as aov1, which is quicker
+2. lmm4 (random interaction intercept, aka split plot model) is not simulated because the inference is the same as aov2, which is quicker
+3. pptt has same inference as aov1 but including it
+
+```{r grcbd-performance-sim, warning=FALSE, message=FALSE, error=FALSE}
+set.seed(1)
+n_sims <- 2000
+do_sim <- FALSE
+
+param_sets <- 3
+treatment_levels <- c("Cn", "Tr1", "Tr2")
+model_levels <- c("lm0", "lm1", "aov1", "aov2", "pptt")
+  
+p1_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p2_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p3_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+r_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = 3)
+
+# parameters
+beta_i = c(10, 0, 0)
+
+# each row is different param_set
+sigma_exp.block.treat_matrix <- matrix(c(
+  c(2, 1, 0.2),
+  c(0.5, .25, 0.05),
+  c(0, 0, 0),
+  c(0, 0, 0)
+), nrow = 3, ncol = 4) %>%
+  t()
+colnames(sigma_exp.block.treat_matrix) <- treatment_levels
+
+# each value is different param_set
+sigma_exp.block_list <- c(1, 0.25, 0.8, 0)
+
+# each value is different param_set
+sigma_ss_list <- c(.1, .4, .4, 1)
+
+param_set_matrix <- data.table(
+  sim_id = 1:length(sigma_exp.block_list),
+  sigma_block = sigma_exp.block_list,
+  sigma_exp.block.treat_matrix,
+  sigma_ss = sigma_ss_list
+)
+
+res_table <- matrix(as.numeric(NA), nrow = nrow(param_set_matrix), ncol = 15)
+sim_table <- data.table(NULL)
+big_table <- data.table(NULL)
+
+if(do_sim == TRUE){
+  for(param_set in 1:nrow(param_set_matrix)){
+    sigma_exp.block_i <- param_set_matrix[param_set, sigma_block]
+    sigma_exp.block.treat_i <- param_set_matrix[param_set, .SD, .SDcols = treatment_levels] %>% as.numeric()
+    sigma_ss_i <- param_set_matrix[param_set, sigma_ss]
+    sigma_rep_i <- 0.1
+    sigma_exp.treat_i <- 0
+    sigma_exp_i <- 0
+    n_treat_i <- 3
+    n_block_i <- 10
+    n_rep_i <- 2
+    n_ss_i <- 1
+    fake_grcbd <- simulator(
+      seed_i = seed_starter,
+      n_sim = n_sims,
+      n_treat = n_treat_i, # number of treatment levels
+      n_block = n_block_i, # number of litters (blocks)
+      n_rep = n_rep_i, # number of mice per litter:treatment
+      n_ss = n_ss_i, # number of subsamples
+      design = "rcbd",
+      correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+      beta = beta_i,
+      gamma = c(1, 1, 0), # sd of random intercept and slopes for non-ref
+      rho = 0.0, # r between random intercept and slopes
+      sigma_exp = sigma_exp_i, # sd among experiments
+      sigma_exp.block = sigma_exp.block_i, # sd among exp:block (or block if n_exp = 1)
+      sigma_exp.treat = sigma_exp.treat_i, # sd among exp:treat
+      sigma_exp.block.treat = sigma_exp.block.treat_i, # sd among exp:block:treat
+      sigma_rep = sigma_rep_i,
+      sigma_ss = sigma_ss_i, # sd among subsamples within replication of treatment:block
+      # sigma_exp = 0, # sd among experiments
+      # sigma_exp.block = 0.1, # sd among exp:block (or block if n_exp = 1)
+      # sigma_exp.treat = 0, # sd among exp:treat
+      # sigma_exp.block.treat = c(0.1, 0.1, 0.1), # sd among exp:block:treat
+      # sigma_rep = 0.1,
+      # sigma_ss = 1, # sd among subsamples within replication of treatment:block
+      block_name = "experiment",
+      rep_name = "mouse",
+      ss_name = "ss",
+    )
+    
+    for(i in 1:n_sims){
+      
+      # models
+      form_lm0 <- paste(paste0("sim_", i), "~ treatment") %>%
+        formula()
+      form_lm1 <- paste(paste0("sim_", i), "~ treatment + experiment") %>%
+        formula()
+      form_aov <- paste(paste0("sim_", i), "~ treatment + (treatment | experiment)") %>%
+        formula()
+      lm0 <- lm(form_lm0, data = fake_grcbd)
+      lm1 <- lm(form_lm1, data = fake_grcbd)
+      # aov2 used for both multivariate (aov1) and univariate (aov2)
+      aov2 <- aov_4(form_aov,
+                    fun_aggregate = mean,
+                    include_aov = TRUE,
+                    data = fake_grcbd)
+      fake_grcbd_means <- fake_grcbd[, .(sim_1 = mean(get(paste0("sim_", i)))),
+                                     by = .(treatment, experiment)]
+      
+      pptt_pairs <- pairwise_t_tests(y_col = "sim_1",
+                              g_col = "treatment",
+                              id_col = "experiment",
+                              data = fake_grcbd_means)
+      
+      lm0_pairs <- emmeans(lm0, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov1_pairs <- emmeans(aov2, specs = "treatment", model = "multivariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov2_pairs <- emmeans(aov2, specs = "treatment", model = "univariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      
+      fake_grcbd[, y_res := residuals(lm0)]
+      fake_grcbd_wide <- dcast(fake_grcbd,
+                               experiment + rep ~ treatment,
+                               value.var = "y_res")
+      residual_correlations <- cor(fake_grcbd_wide[, .SD, .SDcols = treatment_levels])
+      r_mat[i, 1] <- residual_correlations[2,1]
+      r_mat[i, 2] <- residual_correlations[3,1]
+      r_mat[i, 3] <- residual_correlations[3,2]
+      
+      lm0_p <- summary(lm0_pairs)[, "p.value"]
+      lm1_p <- summary(lm1_pairs)[, "p.value"]
+      aov1_p <- summary(aov1_pairs)[, "p.value"]
+      aov2_p <- summary(aov2_pairs)[, "p.value"]
+      pptt_p <- pptt_pairs[, p.value]
+      
+      p1_mat[i, 1] <- lm0_p[1]
+      p1_mat[i, 2] <- lm1_p[1]
+      p1_mat[i, 3] <- aov1_p[1]
+      p1_mat[i, 4] <- aov2_p[1]
+      p1_mat[i, 5] <- pptt_p[1]
+      
+      p2_mat[i, 1] <- lm0_p[2]
+      p2_mat[i, 2] <- lm1_p[2]
+      p2_mat[i, 3] <- aov1_p[2]
+      p2_mat[i, 4] <- aov2_p[2]
+      p2_mat[i, 5] <- pptt_p[2]
+      
+      p3_mat[i, 1] <- lm0_p[3]
+      p3_mat[i, 2] <- lm1_p[3]
+      p3_mat[i, 3] <- aov1_p[3]
+      p3_mat[i, 4] <- aov2_p[3]
+      p3_mat[i, 5] <- pptt_p[3]
+      
+    }
+    
+    sim_table <- cbind(r_mat, p1_mat, p2_mat, p3_mat)
+    sim_table_names <- paste(rep(model_levels, 3),
+          rep(c("contrast_1", "contrast_2", "contrast_3"), each = length(model_levels)),
+          sep = "_")
+    colnames(sim_table) <- c("r21", "r31", "r32", sim_table_names)
+    
+    big_table <- rbind(
+      big_table,
+      data.table(
+        sim_id = param_set,
+        n_treat = n_treat_i,
+        n_block = n_block_i,
+        n_rep = n_rep_i,
+        n_ss = n_ss_i,
+        sigma_block = sigma_exp.block_i,
+        sigma_block.treat_1 = sigma_exp.block.treat_i[1],
+        sigma_block.treat_2 = sigma_exp.block.treat_i[2],
+        sigma_block.treat_3 = sigma_exp.block.treat_i[3],
+        sigma_exp.treat = sigma_exp.treat_i,
+        sigma_rep = sigma_rep_i,
+        sigma_exp = sigma_exp_i,
+        sigma_ss = sigma_ss_i,
+        sim_table
+      )
+    )
+  } # end sim
+  
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "grcbd.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  saveRDS(object = big_table, file = save_file_path)
+  
+}else{
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "grcbd.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  big_table <- readRDS(save_file_path)
+} # end do_sim
+
+
+out_table <- data.table(NULL)
+for(param_set in 1:nrow(param_set_matrix)){
+  r_mat <- big_table[sim_id == param_set, .SD, .SDcols = c("r21", "r31", "r32")]
+  p1_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_1")]
+  p2_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_2")]
+  p3_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_3")]
+  out_table <- rbind(
+    out_table,
+    data.table(
+      contrast = c("Cn, Tr1", "Cn, Tr2", "Tr1, Tr2"),
+      cor = apply(r_mat, 2, mean),
+      rbind(apply(p1_mat, 2, pless),
+            apply(p2_mat, 2, pless),
+            apply(p3_mat, 2, pless))
+    ))
+}
+
+setnames(out_table,
+         names(out_table),
+         c("Contrast", "Cor Error", model_levels))
+out_table %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("sim 1 - high correlated error", 1, 3) %>%
+  pack_rows("sim 2 - low correlated error", 4, 6) %>%
+  pack_rows("sim 3 - equal correlated error", 7, 9) %>%
+  pack_rows("sim 4 - zero correlated error", 10, 12)
+
+```
+
+### Unbalanced
+
+**The experimental design**
+
+1. The design is GRCBD. There are 10 blocks, each with 3 treatment levels. There are 2 replicates of each treatment in each block. Examples are
+    * Six mice are sampled from 10 litters. Within each litter, 2 are assigned to Cn, 2 to Tr1, and 2 to Tr2. Litter is the block.
+    * 6 cultures are randomly assigned to 2 Cn, 2 Tr1, and 2 Tr2. The experiment is replicated 10 times. Experiment is the block.
+2. The design is unbalanced. Both Cn treatments from block 1 are missing. aov1 and aov2 will exclude this whole block. pairwise paired-t tests will only exclude block 1 in the comparisons that include Cn. lmm3 will use all information.
+
+**The simulation**
+
+1. Simulation performance is measured as Power (1 - Type II error rate)
+2. Four scenarios are simulated
+    * Moderate correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Small correlated error. Heterogenous variance and correlation (unstructured error covariance)
+    * Moderate correlated error. Homogenous variance and correlation (compound symmetry error covariance)
+    * No correlated error. Homogenous variance (standard lm assumptions)
+
+**The models**
+
+1. lm0: linear model with treatment as the single factor
+2. lm1: fixed effect model; treatment * block
+3. aov1: multivariate repeated measures ANOVA
+4. aov2: univariate repeated measures ANOVA
+5. pptt: pairwise, paired t-test
+6. lmm3: random slope and interecept model
+
+Notes on models
+
+1. lmm3 (random intercept and slope) is not simulated because the inference is the same as aov1, which is quicker
+2. lmm4 (random interaction intercept, aka split plot model) is not simulated because the inference is the same as aov2, which is quicker
+3. aov1, pptt, and lmm3 will have slightly different inference because of unbalance
+
+```{r grcbd-performance-sim-unbalanced, warning=FALSE, message=FALSE, error=FALSE}
+set.seed(1)
+n_sims <- 2000
+do_sim <- FALSE
+
+param_sets <- 3
+treatment_levels <- c("Cn", "Tr1", "Tr2")
+model_levels <- c("lm0", "lm1", "aov1", "aov2", "pptt", "lmm3")
+  
+p1_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p2_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+p3_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = length(model_levels))
+r_mat <- matrix(as.numeric(NA), nrow = n_sims, ncol = 3)
+
+# parameters
+beta_i = c(10, 0.25, 0.5)
+# each row is different param_set
+beta_matrix <- matrix(c(
+  c(10, 1, 2),
+  c(10, 0.4, 0.8),
+  c(10, 0.25, 0.5),
+  c(10, 0.6, 1.2)
+), nrow = 3, ncol = 4) %>%
+  t()
+beta_cols <- c("beta_0", "beta_1", "beta_2")
+colnames(beta_matrix) <- beta_cols
+
+# each row is different param_set
+sigma_exp.block.treat_matrix <- matrix(c(
+  c(2, 1, 0.2),
+  c(0.5, .25, 0.05),
+  c(0, 0, 0),
+  c(0, 0, 0)
+), nrow = 3, ncol = 4) %>%
+  t()
+colnames(sigma_exp.block.treat_matrix) <- treatment_levels
+
+# each value is different param_set
+sigma_exp.block_list <- c(1, 0.25, 0.8, 0)
+
+# each value is different param_set
+sigma_ss_list <- c(.1, .4, .4, 1)
+
+param_set_matrix <- data.table(
+  sim_id = 1:length(sigma_exp.block_list),
+  beta_matrix,
+  sigma_block = sigma_exp.block_list,
+  sigma_exp.block.treat_matrix,
+  sigma_ss = sigma_ss_list
+)
+
+res_table <- matrix(as.numeric(NA), nrow = nrow(param_set_matrix), ncol = 15)
+sim_table <- data.table(NULL)
+big_table <- data.table(NULL)
+
+if(do_sim == TRUE){
+  for(param_set in 1:nrow(param_set_matrix)){
+    beta_i = param_set_matrix[param_set, .SD, .SDcols = beta_cols] %>% as.numeric()
+    sigma_exp.block_i <- param_set_matrix[param_set, sigma_block]
+    sigma_exp.block.treat_i <- param_set_matrix[param_set, .SD, .SDcols = treatment_levels] %>% as.numeric()
+    sigma_ss_i <- param_set_matrix[param_set, sigma_ss]
+    sigma_rep_i <- 0.1
+    sigma_exp.treat_i <- 0
+    sigma_exp_i <- 0
+    n_treat_i <- 3
+    n_block_i <- 10
+    n_rep_i <- 2
+    n_ss_i <- 1
+    fake_grcbd <- simulator(
+      seed_i = seed_starter,
+      n_sim = n_sims,
+      n_treat = n_treat_i, # number of treatment levels
+      n_block = n_block_i, # number of litters (blocks)
+      n_rep = n_rep_i, # number of mice per litter:treatment
+      n_ss = n_ss_i, # number of subsamples
+      design = "rcbd",
+      beta = beta_i,
+      sigma_exp = sigma_exp_i, # sd among experiments
+      sigma_exp.block = sigma_exp.block_i, # sd among exp:block (or block if n_exp = 1)
+      sigma_exp.treat = sigma_exp.treat_i, # sd among exp:treat
+      sigma_exp.block.treat = sigma_exp.block.treat_i, # sd among exp:block:treat
+      sigma_rep = sigma_rep_i,
+      sigma_ss = sigma_ss_i, # sd among subsamples within replication of treatment:block
+      block_name = "experiment",
+      rep_name = "mouse",
+      ss_name = "ss",
+    )
+    
+    # create missing
+    inc <- 3:nrow(fake_grcbd) # remove treatment "Cn" from experiment 1
+    fake_grcbd <- fake_grcbd[inc]
+    for(i in 1:n_sims){
+      # models
+      form_lm0 <- paste(paste0("sim_", i), "~ treatment") %>%
+        formula()
+      form_lm1 <- paste(paste0("sim_", i), "~ treatment + experiment") %>%
+        formula()
+      form_lmm <- paste(paste0("sim_", i), "~ treatment + (treatment | experiment)") %>%
+        formula()
+      lm0 <- lm(form_lm0, data = fake_grcbd)
+      lm1 <- lm(form_lm1, data = fake_grcbd)
+      lmm3 <- lmer(form_lmm,
+                   data = fake_grcbd)
+      lmer_message <- ifelse(is.null(lmer_check(lmm3)),
+                             "none",
+                             "error")
+      # aov1 used for both multivariate (aov1) and univariate (aov2)
+      aov1 <- aov_4(form_lmm,
+                    fun_aggregate = mean,
+                    include_aov = TRUE,
+                    data = fake_grcbd)
+      fake_grcbd_means <- fake_grcbd[, .(sim_1 = mean(get(paste0("sim_", i)))),
+                                     by = .(treatment, experiment)]
+      
+      pptt_pairs <- pairwise_t_tests(y_col = "sim_1",
+                              g_col = "treatment",
+                              id_col = "experiment",
+                              data = fake_grcbd_means)
+      
+      lm0_pairs <- emmeans(lm0, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      lm1_pairs <- emmeans(lm1, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      lmm3_pairs <- emmeans(lmm3, specs = "treatment") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov1_pairs <- emmeans(aov1, specs = "treatment", model = "multivariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      aov2_pairs <- emmeans(aov1, specs = "treatment", model = "univariate") %>%
+        contrast(method = "revpairwise", adjust = "none")
+      
+      fake_grcbd[, y_res := residuals(lm0)]
+      fake_grcbd_wide <- dcast(fake_grcbd,
+                               experiment + rep ~ treatment,
+                               value.var = "y_res")
+      residual_correlations <- cor(fake_grcbd_wide[, .SD, .SDcols = treatment_levels], use = "pairwise.complete.obs")
+      r_mat[i, 1] <- residual_correlations[2,1]
+      r_mat[i, 2] <- residual_correlations[3,1]
+      r_mat[i, 3] <- residual_correlations[3,2]
+      
+      lm0_p <- summary(lm0_pairs)[, "p.value"]
+      lm1_p <- summary(lm1_pairs)[, "p.value"]
+      if(lmer_message == "none"){
+        lmm3_p <- summary(lmm3_pairs)[, "p.value"]
+      }else{
+        lmm3_p <- pptt_pairs[, p.value] # lmer then paired t strategy
+      }
+      aov1_p <- summary(aov1_pairs)[, "p.value"]
+      aov2_p <- summary(aov2_pairs)[, "p.value"]
+      pptt_p <- pptt_pairs[, p.value]
+      
+      p1_mat[i, 1] <- lm0_p[1]
+      p1_mat[i, 2] <- lm1_p[1]
+      p1_mat[i, 3] <- aov1_p[1]
+      p1_mat[i, 4] <- aov2_p[1]
+      p1_mat[i, 5] <- pptt_p[1]
+      p1_mat[i, 6] <- lmm3_p[1]
+      
+      p2_mat[i, 1] <- lm0_p[2]
+      p2_mat[i, 2] <- lm1_p[2]
+      p2_mat[i, 3] <- aov1_p[2]
+      p2_mat[i, 4] <- aov2_p[2]
+      p2_mat[i, 5] <- pptt_p[2]
+      p2_mat[i, 6] <- lmm3_p[2]
+      
+      p3_mat[i, 1] <- lm0_p[3]
+      p3_mat[i, 2] <- lm1_p[3]
+      p3_mat[i, 3] <- aov1_p[3]
+      p3_mat[i, 4] <- aov2_p[3]
+      p3_mat[i, 5] <- pptt_p[3]
+      p3_mat[i, 6] <- lmm3_p[3]
+      
+    }
+    
+    sim_table <- cbind(r_mat, p1_mat, p2_mat, p3_mat)
+    sim_table_names <- paste(rep(model_levels, 3),
+          rep(c("contrast_1", "contrast_2", "contrast_3"), each = length(model_levels)),
+          sep = "_")
+    colnames(sim_table) <- c("r21", "r31", "r32", sim_table_names)
+    
+    big_table <- rbind(
+      big_table,
+      data.table(
+        sim_id = param_set,
+        n_treat = n_treat_i,
+        n_block = n_block_i,
+        n_rep = n_rep_i,
+        n_ss = n_ss_i,
+        sigma_block = sigma_exp.block_i,
+        sigma_block.treat_1 = sigma_exp.block.treat_i[1],
+        sigma_block.treat_2 = sigma_exp.block.treat_i[2],
+        sigma_block.treat_3 = sigma_exp.block.treat_i[3],
+        sigma_exp.treat = sigma_exp.treat_i,
+        sigma_rep = sigma_rep_i,
+        sigma_exp = sigma_exp_i,
+        sigma_ss = sigma_ss_i,
+        sim_table
+      )
+    )
+  } # end sim
+  
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "grcbd_unbalanced.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  saveRDS(object = big_table, file = save_file_path)
+  
+}else{
+  data_from <- "rmd - projects/grcbds/data"
+  outfile_name <- "grcbd_unbalanced.Rds"
+  save_file_path <- here(data_from, outfile_name)
+  big_table <- readRDS(save_file_path)
+} # end do_sim
+
+
+out_table <- data.table(NULL)
+for(param_set in 1:nrow(param_set_matrix)){
+  r_mat <- big_table[sim_id == param_set, .SD, .SDcols = c("r21", "r31", "r32")]
+  p1_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_1")]
+  p2_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_2")]
+  p3_mat <- big_table[sim_id == param_set, .SD, .SDcols = paste0(model_levels, "_contrast_3")]
+  out_table <- rbind(
+    out_table,
+    data.table(
+      contrast = c("Cn, Tr1", "Cn, Tr2", "Tr1, Tr2"),
+      cor = apply(r_mat, 2, mean),
+      rbind(apply(p1_mat, 2, pless),
+            apply(p2_mat, 2, pless),
+            apply(p3_mat, 2, pless))
+    ))
+}
+
+setnames(out_table,
+         names(out_table),
+         c("Contrast", "Cor Error", model_levels))
+out_table %>%
+  kable(digits = c(1, 3, 3, 3, 3, 3, 3, 4), caption = "models") %>%
+  kable_styling() %>%
+  pack_rows("sim 1 - high correlated error", 1, 3) %>%
+  pack_rows("sim 2 - low correlated error", 4, 6) %>%
+  pack_rows("sim 3 - equal correlated error", 7, 9) %>%
+  pack_rows("sim 4 - zero correlated error", 10, 12)
+
+
+```
+
+
