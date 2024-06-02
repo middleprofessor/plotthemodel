@@ -123,7 +123,7 @@ options:
       default: false
 
     - name: join_blocks
-      title: (For paired/blocked data) Join Blocks
+      title: (For paired/blocked data) Join paired/blocked data
       type: Bool
       default: false
 

@@ -31,6 +31,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             include_nest <- ifelse(is.null(self$options$nest), FALSE, TRUE)
             the_design <- self$options$design
             the_model <- self$options$model
+            plot_notes_string <- paste("The 95% confidence intervals are computed from the model error (sigma)",
+                                       "and not from the sample standar error of each group.", sep = "\n ")
             model_notes_string <- "No notes"
 
             # plot options
@@ -69,10 +71,13 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                         model_notes_string <- "This LM is equivalent to a one-way ANOVA!"
                     }
                 }
+                total_levels <- length(levels(self$data[[self$options$factor1]]))
             }else{
                 fixed_part <- paste(factor1_label, " * ", factor2_label)
                 formula_string <- paste(response_label, "~", fixed_part)
                 spec_list <- c(factor1_label, factor2_label)
+                total_levels <- length(levels(self$data[[self$options$factor1]])) +
+                  length(levels(self$data[[self$options$factor2]]))
             }
 
             # don't allow lmm/aov_4 if there is no block data
@@ -82,13 +87,16 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             if(the_model == "aov_4" & include_block == FALSE & include_nest == FALSE){
                 model_notes_string <- "aov_4 needs a blocking variable and doesn't work\n with a CRD! Use Model -> lm."
             }
+            if(include_nest == FALSE & the_design == "crds"){
+              model_notes_string <- "CRDS requires a nesting variable!"
+            }
 
-            # formulas with intercept
-            if(include_nest == TRUE){
-                if(the_design == "crds"){
+            # formulas with nests and blocks
+            if(include_nest == TRUE & include_block == FALSE){
+              if(the_design == "crds"){
                     if(the_model == "lm"){
-                        formula_string <- paste0(formula_string, " + (1 | ", nest_label, ")")
-                        model_notes_string <- "lm doesn't work with a CRDS! Use Model -> lmer."
+                        formula_string <- paste0(formula_string, " + ", nest_label)
+                        model_notes_string <- "Danger! You have pseudoreplication! Use lmer or aov_4."
                     }
                     if(the_model == "lmer"){
                         formula_string <- paste0(formula_string, " + (1 | ", nest_label, ")")
@@ -96,23 +104,32 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                     }
                     if(the_model == "aov_4"){
                         formula_string <- paste0(formula_string, " + (1 | ", nest_label, ")")
-                        model_notes_string <- "This is a Nested ANOVA!"
+                        model_notes_string <- "This Nested ANOVA is a speciall case of a LMM!"
                     }
                 }
             }
-            if(include_block == TRUE){
+            if(include_block == TRUE & include_nest == FALSE){
                 if(the_design == "rcbd"){
                     if(the_model == "lm"){
                         formula_string <- paste0(formula_string, " + ", block_label)
+                        model_notes_string <- ifelse(total_levels > 2,
+                                                     "This is equivalent to a univariate model RM-ANOVA!",
+                                                     "This is equivalent to a paired t-test!")
                     }
                     if(the_model == "lmer"){
                         formula_string <- paste0(formula_string, " + (1 | ", block_label, ")")
+                        model_notes_string <- ifelse(total_levels > 2,
+                                                     "This is equivalent to a univariate model RM-ANOVA!",
+                                                     "This is equivalent to a paired t-test!")
                     }
                     if(the_model == "aov_4"){
                         formula_string <- paste0(formula_string, " + (", fixed_part, " | ", block_label, ")")
+                        model_notes_string <- ifelse(total_levels > 2,
+                                                     "This is equivalent to a multivariate model RM-ANOVA!",
+                                                     "This is equivalent to a paired t-test!")
                     }
                 }
-                if(the_design == "spd"){
+              if(the_design == "spd"){
                     if(the_model == "lm"){
                         formula_string <- "lm doesn't work with a SPD"
                     }
@@ -124,7 +141,26 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                     }
                 }
             }
+            if(include_nest == TRUE & include_block == TRUE){
+              if(the_design == "rcbds"){
+                if(the_model == "lm"){
+                  formula_string <- paste0(formula_string, " + ", block_label, " + ", nest_label)
+                  model_notes_string <- "Danger! You have pseudoreplication! Use lmer or aov_4."
+                }
+                if(the_model == "lmer"){
+                  formula_string <- paste0(formula_string, " + (", fixed_part, " | ", block_label, ")")
+                  model_notes_string <- "This is equivalent to a multivariate model RM-ANOVA!"
+                }
+                if(the_model == "aov_4"){
+                  formula_string <- paste0(formula_string, " + (", fixed_part, " | ", block_label, ")")
+                  model_notes_string <- "This is equivalent to a linear mixed model with random intercept and slope"
+                }
+              }
+            }
 
+            # print plot notes
+            self$results$plot_notes$setContent(plot_notes_string)
+            
             # print model formula
             model_string <- paste0(the_model, "(", formula_string, ")")
             self$results$model$setContent(model_string)
@@ -201,7 +237,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             # for nested data, these are technical reps
             # then compute the nest means = experimental reps next
 
-            plotData_full <- data.table(
+                plotData_full <- data.table(
                 dataset = "exp_reps", # change this to technical_reps if nested
                 y = self$data[[self$options$dep]],
                 factor_1 = self$data[[self$options$factor1]]
@@ -244,15 +280,30 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             if(include_nest == TRUE){
                 nest_means <- plotData_full[, .(y = mean(y, na.rm = TRUE)),
                                             by = .(factor_1, factor_2, plot_factor, block_id, nest_id)]
-                setnames(nest_means, old = c("factor_1", "nest_id"), new = c(factor1_label, nest_label))
+                # for prediction to get y, we need factor nest and block labels
+                new_data <- copy(nest_means)
+                setnames(new_data,
+                         old = c("factor_1", "nest_id"),
+                         new = c(factor1_label, nest_label))
+                if(two_factors == TRUE){
+                  setnames(new_data,
+                           old = "factor_2",
+                           new = factor2_label)
+                }
+                if(include_block == TRUE){
+                  setnames(new_data,
+                           old = "block_id",
+                           new = block_label)
+                }
+                
                 plotData_nest_means <- data.table(
                     dataset = "exp_reps",
-                    y = predict(m1, nest_means),
-                    factor_1 = nest_means[, get(factor1_label)],
-                    factor_2 = nest_means$factor_2,
-                    plot_factor = nest_means$plot_factor,
-                    block_id = nest_means$block_id,
-                    nest_id = nest_means[, get(nest_label)],
+                    y = predict(m1, new_data),
+                    factor_1 = nest_means[, factor_1],
+                    factor_2 = nest_means[, factor_2],
+                    plot_factor = nest_means[, plot_factor],
+                    block_id = nest_means[, block_id],
+                    nest_id = nest_means[, nest_id],
                     mean = NA,
                     SE = NA,
                     lo = NA,
@@ -265,8 +316,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             m1_plot <- lm(y ~ plot_factor, plotData_full)
             emm_plot <- emmeans(m1_plot, specs = "plot_factor")
             if(two_factors == FALSE){
-                pairs_plot <- m1_pairs |>
-                    data.table()
+              plot_factor_names <- summary(emm_plot)[,1] # aov_4 can modify factor names so this returns it to original
+              pairs_plot <- m1_pairs |>
+                data.table()
+              emm_plot <- m1_emm |>
+                summary() |>
+                data.table()
+              colnames(emm_plot)[1] <- "plot_factor"
+              emm_plot[, plot_factor := plot_factor_names]
             }else{
                 pairs_plot <- contrast(emm_plot,
                                        method = "revpairwise",
@@ -299,13 +356,17 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                 pairs_plot <- m1_pairs |>
                     data.table()
                 pairs_plot[, contrast := new_contrast_col]
+                
+                # replace flattened names in m1_emm
+                m1_emm <- summary(m1_emm)
+                emm_cols <- colnames(summary(emm_plot))
+                emm_plot <- m1_emm |>
+                  data.table()
+                emm_plot[, plot_factor := paste(m1_emm[,1], m1_emm[,2], sep = "\n")]
+                emm_plot <- emm_plot[, .SD, .SDcols = emm_cols]
             }
             setnames(pairs_plot, old = "SE", new = "SED")
             # make emm_plot = m1_emm
-            emm_plot <- m1_emm |>
-                summary() |>
-                data.table()
-            colnames(emm_plot)[1] <- "plot_factor"
 
             # fill out summary table for means and error bars
             y_cols <- c("dataset", "y", "factor_1", "factor_2", "plot_factor",

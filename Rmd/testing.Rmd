@@ -270,4 +270,70 @@ plotData_full[, lo := as.numeric(NA)]
 plotData_full[, hi := as.numeric(NA)]
 ```
 
+```{r rcbds-2x1}
+seed <- 1
+# sigma_e^2 = sigma_rep^2 + sigma_ss^2
+# icc = sigma_rep^2 / sigma_e^2
+icc <- 0.6
+sigma_e <- 2
+sigma_rep <- sqrt(icc*sigma_e^2)
+sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
+
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 2, # number of treatment levels
+  n_block = 6, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 2, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(21, -3),
+  sigma_exp.block = sigma_rep, # sd among exp:block (or block if n_exp = 1). This is among mouse
+  sigma_exp.block.treat = c(0), # sd among exp:block:treat
+  sigma_ss = sigma_ss, # sd among subsamples within replication of treatment:block
+  block_name = "mouse",
+  rep_name = "limb",
+  ss_name = "ss"
+)
+setnames(fake_data, "sim_1", "diameter") # myotube diameter
+fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
+fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+
+m1 <- lmer(diameter ~ genotype + (genotype | mouse), data = fake_data)
+m1_emm <- emmeans(m1, specs = "genotype")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise") |>
+  summary(infer = TRUE)
+
+fake_data_copy <- copy(fake_data)
+fake_data_copy[, plot_factor := genotype]
+m1_plot <- lm(diameter ~ plot_factor, data = fake_data_copy)
+emm_plot <- emmeans(m2, specs = "plot_factor")
+pairs_plot <- contrast(m2_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+
+m2 <- lm(diameter ~ genotype + mouse + limb, data = fake_data)
+m2_emm <- emmeans(m2, specs = "genotype")
+m2_pairs <- contrast(m2_emm, method = "revpairwise")
+```
+
+```{r}
+plotData_full <- data.table(
+  dataset = "exp_reps", # change this to technical_reps if nested
+  y = fake_data$diameter,
+  factor_1 = fake_data$genotype
+)
+plotData_full[, factor_2 := factor_1]
+plotData_full[, plot_factor := factor_1]
+
+
+plotData_full[, block_id := fake_data$mouse]
+plotData_full[, nest_id := fake_data$limb]
+plotData_full[, mean := as.numeric(NA)]
+plotData_full[, SE := as.numeric(NA)]
+plotData_full[, lo := as.numeric(NA)]
+plotData_full[, hi := as.numeric(NA)]
+```
 

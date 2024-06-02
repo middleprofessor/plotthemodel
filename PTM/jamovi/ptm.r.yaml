@@ -11,6 +11,10 @@ items:
       height: 300
       renderFun: .plot
 
+    - name: plot_notes
+      title: Plot Notes
+      type: Preformatted
+
     - name: model
       title: Model
       type: Preformatted
@@ -30,5 +34,6 @@ items:
     - name:  contrasts
       title: Model Contrasts
       type:  Preformatted
+
 
 ...

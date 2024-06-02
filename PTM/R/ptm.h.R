@@ -160,6 +160,7 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     inherit = jmvcore::Group,
     active = list(
         plot = function() private$.items[["plot"]],
+        plot_notes = function() private$.items[["plot_notes"]],
         model = function() private$.items[["model"]],
         model_notes = function() private$.items[["model_notes"]],
         coef = function() private$.items[["coef"]],
@@ -179,6 +180,10 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 width=400,
                 height=300,
                 renderFun=".plot"))
+            self$add(jmvcore::Preformatted$new(
+                options=options,
+                name="plot_notes",
+                title="Plot Notes"))
             self$add(jmvcore::Preformatted$new(
                 options=options,
                 name="model",
@@ -242,6 +247,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$plot} \tab \tab \tab \tab \tab an image \cr
+#'   \code{results$plot_notes} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$model} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$model_notes} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$coef} \tab \tab \tab \tab \tab a preformatted \cr
