@@ -82,3 +82,9 @@ children:
         name: tech_reps
       - type: CheckBox
         name: join_blocks
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: TextBox
+        name: y_label
+        format: string

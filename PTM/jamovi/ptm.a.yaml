@@ -127,6 +127,8 @@ options:
       type: Bool
       default: false
 
-
+    - name: y_label
+      title: y-axis label
+      type: String
 
 ...

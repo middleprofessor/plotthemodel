@@ -19,7 +19,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             adjust = "default",
             pal = "pal_okabe_ito",
             tech_reps = FALSE,
-            join_blocks = FALSE, ...) {
+            join_blocks = FALSE,
+            y_label = NULL, ...) {
 
             super$initialize(
                 package="PTM",
@@ -107,6 +108,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "join_blocks",
                 join_blocks,
                 default=FALSE)
+            private$..y_label <- jmvcore::OptionString$new(
+                "y_label",
+                y_label)
 
             self$.addOption(private$..dep)
             self$.addOption(private$..factor1)
@@ -122,6 +126,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..pal)
             self$.addOption(private$..tech_reps)
             self$.addOption(private$..join_blocks)
+            self$.addOption(private$..y_label)
         }),
     active = list(
         dep = function() private$..dep$value,
@@ -137,7 +142,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         adjust = function() private$..adjust$value,
         pal = function() private$..pal$value,
         tech_reps = function() private$..tech_reps$value,
-        join_blocks = function() private$..join_blocks$value),
+        join_blocks = function() private$..join_blocks$value,
+        y_label = function() private$..y_label$value),
     private = list(
         ..dep = NA,
         ..factor1 = NA,
@@ -152,7 +158,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..adjust = NA,
         ..pal = NA,
         ..tech_reps = NA,
-        ..join_blocks = NA)
+        ..join_blocks = NA,
+        ..y_label = NA)
 )
 
 PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -244,6 +251,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param pal .
 #' @param tech_reps .
 #' @param join_blocks .
+#' @param y_label .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$plot} \tab \tab \tab \tab \tab an image \cr
@@ -271,7 +279,8 @@ PTM <- function(
     adjust = "default",
     pal = "pal_okabe_ito",
     tech_reps = FALSE,
-    join_blocks = FALSE) {
+    join_blocks = FALSE,
+    y_label) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("PTM requires jmvcore to be installed (restart may be required)")
@@ -305,7 +314,8 @@ PTM <- function(
         adjust = adjust,
         pal = pal,
         tech_reps = tech_reps,
-        join_blocks = join_blocks)
+        join_blocks = join_blocks,
+        y_label = y_label)
 
     analysis <- PTMClass$new(
         options = options,

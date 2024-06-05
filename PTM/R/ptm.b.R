@@ -440,84 +440,86 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
 
         },
         .plot=function(image, ...) {
-            pal_okabe_ito <- c(
-                "#E69F00",
-                "#56B4E9",
-                "#009E73",
-                "#F0E442",
-                "#0072B2",
-                "#D55E00",
-                "#CC79A7"
-            )
-            pal_okabe_ito_blue <- pal_okabe_ito[c(5,6,1,2,3,7,4)]
-            pal_npg <- pal_npg("nrc")(10)
-            pal_aaas <- pal_aaas("default")(10)
-            pal_jco <- pal_jco("default")(10)
-            pal_frontiers <- pal_frontiers("default")(7)
+          pal_okabe_ito <- c(
+            "#E69F00",
+            "#56B4E9",
+            "#009E73",
+            "#F0E442",
+            "#0072B2",
+            "#D55E00",
+            "#CC79A7"
+          )
+          pal_okabe_ito_blue <- pal_okabe_ito[c(5,6,1,2,3,7,4)]
+          pal_npg <- pal_npg("nrc")(10)
+          pal_aaas <- pal_aaas("default")(10)
+          pal_jco <- pal_jco("default")(10)
+          pal_frontiers <- pal_frontiers("default")(7)
+          
+          plotData <- image$state |>
+            data.table()
+          
+          # plot options
+          # tech replicates
+          show_tech_reps <- ifelse(self$options$tech_reps == TRUE, TRUE, FALSE)
+          if(is.null(self$options$nest)){show_tech_reps <- FALSE}
+          # mods for joining blocks
+          include_block <- ifelse(is.null(self$options$block), FALSE, TRUE)
+          join_blocks <- ifelse(include_block == TRUE, self$options$join_blocks, FALSE)
+          # if join, then don't jitter
+          jitter_spread <- ifelse(join_blocks == TRUE, 0, 0.2)
+          line_color <- ifelse(join_blocks == TRUE, "gray", "white")
+          # y-axis label
+          y_label <- ifelse(is.null(self$options$y_label), self$data$dep, self$options$y_label)
 
-            plotData <- image$state |>
-                data.table()
-
-            # tech replicates
-            show_tech_reps <- ifelse(self$options$tech_reps == TRUE, TRUE, FALSE)
-            if(is.null(self$options$nest)){show_tech_reps <- FALSE}
-            # mods for joining blocks
-            include_block <- ifelse(is.null(self$options$block), FALSE, TRUE)
-            join_blocks <- ifelse(include_block == TRUE, self$options$join_blocks, FALSE)
-            # if join, then don't jitter
-            jitter_spread <- ifelse(join_blocks == TRUE, 0, 0.2)
-            line_color <- ifelse(join_blocks == TRUE, "gray", "white")
-
-
-            plot <- ggplot(plotData,
-                           aes(x = plot_factor_id,
-                               y = mean))
-            if(join_blocks == TRUE){
-                plot <- plot +
-                    geom_line(aes(x = plot_factor_id,
-                                  y = y,
-                                  group = block_id),
-                              color = line_color
-                    )
-            }
-            if(show_tech_reps == TRUE){
-                plot <- plot +
-                    geom_sina(data = plotData[dataset == "tech_reps"],
-                              aes(x = plot_factor_id, y = y),
-                              scale = "width",
-                              width = jitter_spread,
-                              size = 1,
-                              color = "gray",
-                              show.legend = FALSE)
-            }
+          plot <- ggplot(plotData,
+                         aes(x = plot_factor_id,
+                             y = mean))
+          if(join_blocks == TRUE){
             plot <- plot +
-                geom_jitter(data = plotData[dataset == "exp_reps"],
-                            aes(x = plot_factor_id, y = y, color = factor_1),
-                            width = jitter_spread,
-                            size = 2,
-                            show.legend = FALSE) +
-                geom_errorbar(aes(ymin = lo, ymax = hi, width=.1),
-                              show.legend = FALSE) +
-                geom_point(aes(x = plot_factor_id, y = mean),
-                           size = 4,
-                           show.legend = FALSE) +
-                ylab(self$options$dep) +
-                scale_x_discrete(labels = levels(plotData$plot_factor)) +
-                theme_pubr() +
-                theme(axis.title.x = element_blank())
+              geom_line(aes(x = plot_factor_id,
+                            y = y,
+                            group = block_id),
+                        color = line_color
+              )
+          }
+          if(show_tech_reps == TRUE){
             plot <- plot +
-                stat_pvalue_manual(plotData,
-                                   label = "p.print",
-                                   y.position = "y_pos",
-                                   xmin = "minx",
-                                   xmax = "maxx",
-                                   size = 3,
-                                   tip.length = 0.01)
-            if(self$options$pal != "pal_ggplot"){
-                plot <- plot +
-                    scale_color_manual(values = get(self$options$pal))
-            }
-            print(plot)
-            TRUE
+              geom_sina(data = plotData[dataset == "tech_reps"],
+                        aes(x = plot_factor_id, y = y),
+                        scale = "width",
+                        width = jitter_spread,
+                        size = 1,
+                        color = "gray",
+                        show.legend = FALSE)
+          }
+          plot <- plot +
+            geom_jitter(data = plotData[dataset == "exp_reps"],
+                        aes(x = plot_factor_id, y = y, color = factor_1),
+                        width = jitter_spread,
+                        size = 2,
+                        show.legend = FALSE) +
+            geom_errorbar(aes(ymin = lo, ymax = hi, width=.1),
+                          show.legend = FALSE) +
+            geom_point(aes(x = plot_factor_id, y = mean),
+                       size = 4,
+                       show.legend = FALSE) +
+            ylab(y_label) +
+            scale_x_discrete(labels = levels(plotData$plot_factor)) +
+            theme_pubr() +
+            theme(axis.title.x = element_blank())
+          plot <- plot +
+            stat_pvalue_manual(plotData,
+                               label = "p.print",
+                               y.position = "y_pos",
+                               xmin = "minx",
+                               xmax = "maxx",
+                               size = 3,
+                               tip.length = 0.01)
+          if(self$options$pal != "pal_ggplot"){
+            plot <- plot +
+              scale_color_manual(values = get(self$options$pal))
+          }
+          print(plot)
+          TRUE
         })
 )
