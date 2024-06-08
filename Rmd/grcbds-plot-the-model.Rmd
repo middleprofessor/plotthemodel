@@ -338,6 +338,60 @@ write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
 
 # SPD - 2 x 2 (RM-ANOVA)
 
+```{r spd-2x2}
+# use settings for rcbd 2 x 1, then change one mouse replicate to either denerv or intact
+seed <- 1
+# sigma_e^2 = sigma_rep^2 + sigma_ss^2
+# icc = sigma_rep^2 / sigma_e^2
+icc <- 0.6
+sigma_e <- 400
+sigma_rep <- sqrt(icc*sigma_e^2)
+sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
+
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 2, # number of treatment levels
+  n_block = 12, # number of litters (blocks)
+  n_rep = 1, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "rcbd",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(2400, 0), # will add effects below
+  sigma_exp.block = sigma_rep, # sd among exp:block (or block if n_exp = 1). This is among mouse
+  sigma_exp.block.treat = c(0), # sd among exp:block:treat
+  sigma_ss = sigma_ss, # sd among subsamples within replication of treatment:block
+  block_name = "mouse",
+  rep_name = "limb",
+  ss_name = "ss"
+)
+setnames(fake_data, "sim_1", "csa") # cross-sectional area
+fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
+fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+# create litter column
+fake_data[, litter := str_replace(block, "mouse", "litter")]
+# create treatment factor that is a main plot
+fake_data[, surgery := rep(rep(c("Intact", "Denerv"), each = 2), 6)]
+fake_data[, treatment := paste(surgery, genotype)]
+# create treatment (main plot) effect
+# beta = c(2400, -800, -700, -1200) these are effects in 2x2 RCBD
+fake_data[surgery == "Denerv" & genotype == "Control", csa := csa - 800]
+fake_data[surgery == "Intact" & genotype == "mKO", csa := csa - 700]
+fake_data[surgery == "Denerv" & genotype == "mKO", csa := csa - 1200]
+
+m1 <- lm(csa ~ surgery * genotype, data = fake_data)
+m1_emm <- emmeans(m1, specs = c("surgery", "genotype"))
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+outfile_name <- "spd2x2.xlsx"
+outpath <- here(data_folder, outfile_name)
+y_cols <- c("litter", "mouse", "surgery", "genotype", "treatment", "csa")
+write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
+```
+
 # SPD - 3 x 2 (RM-ANOVA)
 
 # RCBDS - 2 groups

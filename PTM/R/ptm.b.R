@@ -465,12 +465,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           # mods for joining blocks
           include_block <- ifelse(is.null(self$options$block), FALSE, TRUE)
           join_blocks <- ifelse(include_block == TRUE, self$options$join_blocks, FALSE)
-          # if join, then don't jitter
+          # # if join, then don't jitter
           jitter_spread <- ifelse(join_blocks == TRUE, 0, 0.2)
           line_color <- ifelse(join_blocks == TRUE, "gray", "white")
           # y-axis label
-          y_label <- ifelse(is.null(self$options$y_label), self$data$dep, self$options$y_label)
-
+          y_label <- ifelse(is.null(self$options$y_label), self$options$dep, self$options$y_label)
+          y_label <- ifelse(self$options$y_label == "", self$options$dep, self$options$y_label)
+          
+          # plot it!
           plot <- ggplot(plotData,
                          aes(x = plot_factor_id,
                              y = mean))

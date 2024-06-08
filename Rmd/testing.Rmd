@@ -337,3 +337,44 @@ plotData_full[, lo := as.numeric(NA)]
 plotData_full[, hi := as.numeric(NA)]
 ```
 
+# test spd
+
+```{r}
+# Test spd
+
+filename <- "spd2x2.xlsx"
+file_path <- here(data_folder, filename)
+fd <- read_excel(file_path) |>
+    data.table()
+fd[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+fd[, surgery := factor(surgery, levels = c("Intact", "Denerv"))]
+
+
+
+plotData_full <- data.table(
+    dataset = "experimental_reps", # change this to technical_reps if nested
+    y = fd$csa,
+    factor_1 = fd$genotype,
+    factor_2 = fd$surgery
+)
+                plotData_full[, plot_factor := paste(factor_1, factor_2,
+                                                     sep = "\n")]
+                # reorder factor levels for 2-factor plots
+                levels_1 <- levels(plotData_full$factor_1) |>
+                    as.character()
+                levels_2 <- levels(plotData_full$factor_2) |>
+                    as.character()
+                levels_table <- expand.grid(levels_1, levels_2, stringsAsFactors = FALSE) |>
+                    data.table()
+                levels_table[, plot_levels := paste(Var1, Var2, sep = "\n")]
+                plotData_full[, plot_factor := factor(plot_factor,
+                                                 levels = levels_table[, plot_levels])]
+
+plotData_full[, block_id := fd$mouse]
+plotData_full[, nest_id := NA]
+plotData_full[, mean := as.numeric(NA)]
+plotData_full[, SE := as.numeric(NA)]
+plotData_full[, lo := as.numeric(NA)]
+plotData_full[, hi := as.numeric(NA)]
+```
+
