@@ -45,23 +45,11 @@ options:
           name:  grcbd
         - title: GRCBDS
           name:  grcbds
-        - title: SPD
+        - title: SPD 
           name:  spd
         - title: GSPD
           name:  gspd
       default: crd
-
-    - name: model
-      title: Model
-      type: List
-      options:
-        - title: Fixed Effects Model (lm)
-          name:  lm
-        - title: Linear Mixed Model (lmer)
-          name:  lmer
-        - title: Paired-t / RM-ANOVA (aov_4)
-          name:  aov_4
-      default: lm
 
     - name: subplot
       title: If Split Plot...
@@ -72,6 +60,36 @@ options:
         - title: factor 2 is subplot
           name:  subplot.eq.2
       default: subplot.eq.1
+
+    - name: model
+      title: Model
+      type: List
+      options:
+        - title: Linear Model (lm)
+          name:  lm
+        - title: Linear Mixed Model (lmer)
+          name:  lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  aov_4
+        - title: Generalized Linear Model (glm)
+          name:  glm
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  glmer
+      default: lm
+
+    - name: family
+      title: Model Family
+      type: List
+      options:
+        - title: Normal
+          name:  norm
+        - title: Binomial (success/fail)
+          name:  binom
+        - title: Negative Binomial (counts)
+          name:  negbin
+        - title: Gamma (continuous)
+          name:  gamma
+      default: norm
 
     - name: trtvsctrl
       title: Treatment vs. Control (one factor only)

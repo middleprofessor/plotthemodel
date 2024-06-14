@@ -12,8 +12,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             block = NULL,
             nest = NULL,
             design = "crd",
-            model = "lm",
             subplot = "subplot.eq.1",
+            model = "lm",
+            family = "norm",
             trtvsctrl = FALSE,
             simple = TRUE,
             adjust = "default",
@@ -56,14 +57,6 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "spd",
                     "gspd"),
                 default="crd")
-            private$..model <- jmvcore::OptionList$new(
-                "model",
-                model,
-                options=list(
-                    "lm",
-                    "lmer",
-                    "aov_4"),
-                default="lm")
             private$..subplot <- jmvcore::OptionList$new(
                 "subplot",
                 subplot,
@@ -71,6 +64,25 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "subplot.eq.1",
                     "subplot.eq.2"),
                 default="subplot.eq.1")
+            private$..model <- jmvcore::OptionList$new(
+                "model",
+                model,
+                options=list(
+                    "lm",
+                    "lmer",
+                    "aov_4",
+                    "glm",
+                    "glmer"),
+                default="lm")
+            private$..family <- jmvcore::OptionList$new(
+                "family",
+                family,
+                options=list(
+                    "norm",
+                    "binom",
+                    "negbin",
+                    "gamma"),
+                default="norm")
             private$..trtvsctrl <- jmvcore::OptionBool$new(
                 "trtvsctrl",
                 trtvsctrl,
@@ -118,8 +130,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..block)
             self$.addOption(private$..nest)
             self$.addOption(private$..design)
-            self$.addOption(private$..model)
             self$.addOption(private$..subplot)
+            self$.addOption(private$..model)
+            self$.addOption(private$..family)
             self$.addOption(private$..trtvsctrl)
             self$.addOption(private$..simple)
             self$.addOption(private$..adjust)
@@ -135,8 +148,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         block = function() private$..block$value,
         nest = function() private$..nest$value,
         design = function() private$..design$value,
-        model = function() private$..model$value,
         subplot = function() private$..subplot$value,
+        model = function() private$..model$value,
+        family = function() private$..family$value,
         trtvsctrl = function() private$..trtvsctrl$value,
         simple = function() private$..simple$value,
         adjust = function() private$..adjust$value,
@@ -151,8 +165,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..block = NA,
         ..nest = NA,
         ..design = NA,
-        ..model = NA,
         ..subplot = NA,
+        ..model = NA,
+        ..family = NA,
         ..trtvsctrl = NA,
         ..simple = NA,
         ..adjust = NA,
@@ -243,8 +258,9 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param block .
 #' @param nest .
 #' @param design .
-#' @param model .
 #' @param subplot .
+#' @param model .
+#' @param family .
 #' @param trtvsctrl .
 #' @param simple .
 #' @param adjust .
@@ -272,8 +288,9 @@ PTM <- function(
     block,
     nest,
     design = "crd",
-    model = "lm",
     subplot = "subplot.eq.1",
+    model = "lm",
+    family = "norm",
     trtvsctrl = FALSE,
     simple = TRUE,
     adjust = "default",
@@ -307,8 +324,9 @@ PTM <- function(
         block = block,
         nest = nest,
         design = design,
-        model = model,
         subplot = subplot,
+        model = model,
+        family = family,
         trtvsctrl = trtvsctrl,
         simple = simple,
         adjust = adjust,

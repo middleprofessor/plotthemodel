@@ -7,16 +7,17 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
     private = list(
         .run = function() {
 
-            # source_path <- here("R", "ggplot_the_model.R")
-            # source(source_path)
-
-            # `self$data` contains the data
-            # `self$options` contains the options
-            # `self$results` contains the results object (to populate)
-            #table <- self$results$ttest # use this line to find if code gets this far
-
-            remove_parentheses <- function(x){
-                if(substr(x, 1, 1) == "("){
+          # source_path <- here("R", "ggplot_the_model.R")
+          # source(source_path)
+          
+          # `self$data` contains the data
+          # `self$options` contains the options
+          # `self$results` contains the results object (to populate)
+          # table <- self$results$ttest # use this line to find if code gets this far
+          # setwd("/Users/walker/Documents/Github/plotthemodel/PTM")
+          
+          remove_parentheses <- function(x){
+            if(substr(x, 1, 1) == "("){
                     x <- substr(x, 2, nchar(x))
                 }
                 if(substr(x, nchar(x), nchar(x)) == ")"){
@@ -31,9 +32,23 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             include_nest <- ifelse(is.null(self$options$nest), FALSE, TRUE)
             the_design <- self$options$design
             the_model <- self$options$model
+            the_family <- self$options$family
             plot_notes_string <- paste("The 95% confidence intervals are computed from the model error (sigma)",
-                                       "and not from the sample standar error of each group.", sep = "\n ")
-            model_notes_string <- "No notes"
+                                       "and not from the sample standard error of each group.", sep = "\n ")
+            if(the_family == "norm"){
+              model_notes_string <- paste("The fit model assumes Independent and Identically Distributed (IID) responses",
+              "(the Normal, Homogenous variance, Independent assumption) that is, each conditional response",
+              "was independently sampled from the same, normal distribution")
+            }
+            model_notes_string <- ""
+            
+            # fixed, mixed, or anova
+            if(the_model == "aov_4"){
+              model_class <- "anova"
+            }else{
+              model_class <- ifelse(include_block == TRUE | include_nest == TRUE, "mixed", "fixed")
+            }
+            family_class <- ifelse(the_model == "glm" | the_model == "glmer", "generalized", "general")
 
             # plot options
             plot_trt.vs.ctrl <- ifelse(self$options$trtvsctrl == TRUE,
@@ -94,15 +109,15 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             # formulas with nests and blocks
             if(include_nest == TRUE & include_block == FALSE){
               if(the_design == "crds"){
-                    if(the_model == "lm"){
+                    if(model_class == "fixed"){
                         formula_string <- paste0(formula_string, " + ", nest_label)
                         model_notes_string <- "Danger! You have pseudoreplication! Use lmer or aov_4."
                     }
-                    if(the_model == "lmer"){
+                    if(model_class == "mixed"){
                         formula_string <- paste0(formula_string, " + (1 | ", nest_label, ")")
                         model_notes_string <- "This LMM is equivalent to a Nested ANOVA if there are no missing data!"
                     }
-                    if(the_model == "aov_4"){
+                    if(model_class == "anova"){
                         formula_string <- paste0(formula_string, " + (1 | ", nest_label, ")")
                         model_notes_string <- "This Nested ANOVA is a speciall case of a LMM!"
                     }
@@ -162,7 +177,13 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             self$results$plot_notes$setContent(plot_notes_string)
             
             # print model formula
-            model_string <- paste0(the_model, "(", formula_string, ")")
+            family_string <- ""
+            if(family_class == "generalized"){
+              if(the_family == "gamma"){
+                family_string <- ', family = Gamma(link = "log")'
+              }
+            }
+            model_string <- paste0(the_model, "(", formula_string, family_string, ")")
             self$results$model$setContent(model_string)
 
             # print model notes
@@ -171,20 +192,30 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             # fit model
             model_formula <- formula_string |>
                 as.formula()
-            if(the_model == "lm"){
+            if(the_model == "lm" & the_family == "norm"){
                 m1 <- lm(model_formula, self$data)
             }
-            if(the_model == "lmer"){
+            if(the_model == "glm" & the_family == "gamma"){
+              m1 <- glm(model_formula, family = Gamma(link = "log"), self$data)
+            }
+            if(the_model == "lmer" & the_family == "norm"){
                 m1 <- lmer(model_formula, self$data)
             }
-            if(the_model == "aov_4"){
-                m1 <- aov_4(model_formula, self$data)
+            if(the_model == "glmer" & the_family == "gamma"){
+              m1 <- glmer(model_formula, family = Gamma(link = "log"), self$data)
+            }
+            if(the_model == "aov_4" & the_family == "norm"){
+              m1 <- aov_4(model_formula, self$data)
             }
 
             # model results
             self$results$coef$setContent(coef(summary(m1)))
 
-            m1_emm <- emmeans(m1, specs = spec_list)
+            if(family_class == "general"){
+              m1_emm <- emmeans(m1, specs = spec_list)
+            }else{
+              m1_emm <- emmeans(m1, specs = spec_list, type = "response")
+            }
             # emm results
             self$results$emm$setContent(m1_emm)
 
@@ -231,16 +262,17 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             }
             # contrasts results
             self$results$contrasts$setContent(m1_pairs)
-
+            
+#            table <- self$results$ttest # use this line to find if code gets this far
             # create the datasets of measurement reps
             # for non-nested data, these are the experimental reps
             # for nested data, these are technical reps
             # then compute the nest means = experimental reps next
 
-                plotData_full <- data.table(
-                dataset = "exp_reps", # change this to technical_reps if nested
-                y = self$data[[self$options$dep]],
-                factor_1 = self$data[[self$options$factor1]]
+            plotData_full <- data.table(
+              dataset = "exp_reps", # change this to technical_reps if nested
+              y = self$data[[self$options$dep]],
+              factor_1 = self$data[[self$options$factor1]]
             )
             if(two_factors == FALSE){
                 plotData_full[, factor_2 := factor_1]
@@ -296,9 +328,15 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                            new = block_label)
                 }
                 
+                y_hat <- predict(m1, new_data)
+                if(family_class == "generalized"){
+                  y_hat <- predict(m1, new_data, type = "response")
+                }
+                # predict seems to predict the mean based on the error standard deviation so its random. What I
+                # want is simply the expected value given the model coefficients.
                 plotData_nest_means <- data.table(
                     dataset = "exp_reps",
-                    y = predict(m1, new_data),
+                    y = y_hat,
                     factor_1 = nest_means[, factor_1],
                     factor_2 = nest_means[, factor_2],
                     plot_factor = nest_means[, plot_factor],
@@ -312,25 +350,33 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                 plotData_full[, dataset := "tech_reps"]
             }
 
-            # fit plot
+            # m1_emm and m1_pairs have variable columns and column names so here I fit
+            # and 2X data flattened (all combos in a single treatment factor) using 
+            # lm (even if the specified model is mixed or generalized). This is because
+            # I want the x-axis labels to be those of the flattened model. So all of
+            # this just get's me the plot_factor column - the means, CIs, p-values
+            # are all from the specified model fit.
+            
+            # these are the tables needed to send to ggplot
+            m1_emm_dt <- m1_emm |>
+              summary() |>
+              data.table()
+            m1_pairs_dt <- m1_pairs |>
+              data.table()
+            # these are the tables that get the plot_factor column correct
             m1_plot <- lm(y ~ plot_factor, plotData_full)
             emm_plot <- emmeans(m1_plot, specs = "plot_factor")
+            pairs_plot <- contrast(emm_plot,
+                                   method = "revpairwise",
+                                   adjust = "none") |>
+              summary(infer = TRUE) |>
+              data.table()
             if(two_factors == FALSE){
               plot_factor_names <- summary(emm_plot)[,1] # aov_4 can modify factor names so this returns it to original
-              pairs_plot <- m1_pairs |>
-                data.table()
-              emm_plot <- m1_emm |>
-                summary() |>
-                data.table()
-              colnames(emm_plot)[1] <- "plot_factor"
-              emm_plot[, plot_factor := plot_factor_names]
+              colnames(m1_emm_dt) <- c("plot_factor", "mean", "SE", "df", "lo", "hi")
+              m1_emm_dt[, plot_factor := plot_factor_names]
+              m1_pairs_dt[, contrast := pairs_plot[, 1]]
             }else{
-                pairs_plot <- contrast(emm_plot,
-                                       method = "revpairwise",
-                                       adjust = "none") |>
-                    summary(infer = TRUE) |>
-                    data.table()
-
                 if(plot_simple == TRUE){
                     # keep simple effects only
                     levels_1 <- levels(plotData_full$factor_1) |>
@@ -353,20 +399,17 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                     pairs_plot <- pairs_plot[rows_list,]
                 }
                 new_contrast_col <- pairs_plot[, contrast]
-                pairs_plot <- m1_pairs |>
-                    data.table()
-                pairs_plot[, contrast := new_contrast_col]
+                m1_pairs_dt[, contrast := new_contrast_col]
                 
                 # replace flattened names in m1_emm
-                m1_emm <- summary(m1_emm)
-                emm_cols <- colnames(summary(emm_plot))
-                emm_plot <- m1_emm |>
-                  data.table()
-                emm_plot[, plot_factor := paste(m1_emm[,1], m1_emm[,2], sep = "\n")]
-                emm_plot <- emm_plot[, .SD, .SDcols = emm_cols]
+                colnames(m1_emm_dt) <- c("factor1", "factor2", "mean", "SE", "df", "lo", "hi")
+                m1_emm_dt[, plot_factor := paste(factor1, factor2, sep = "\n")]
+                m1_emm_dt <- m1_emm_dt[, .SD, .SDcols = c("plot_factor", "mean", "SE", "df", "lo", "hi")]
             }
-            setnames(pairs_plot, old = "SE", new = "SED")
-            # make emm_plot = m1_emm
+            # unify colnames for different kinds of emm and pairs tables
+            # colnames(emm_plot)[2,5,6] <- c("mean", "lo", "hi")
+            setnames(m1_pairs_dt, old = "SE", new = "SED")
+            
 
             # fill out summary table for means and error bars
             y_cols <- c("dataset", "y", "factor_1", "factor_2", "plot_factor",
@@ -378,11 +421,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                 factor_2 = NA,
                 block_id = NA,
                 nest_id = NA,
-                emm_plot
+                m1_emm_dt
             )
-            setnames(plotData_summary,
-                     old = c("emmean", "lower.CL", "upper.CL"),
-                     new = c("mean", "lo", "hi"))
             plotData_summary <- plotData_summary[, .SD, .SDcols = y_cols]
 
             # combine summary and full data because ggplot in jmv can
@@ -399,18 +439,18 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             plot_factor_levels <- levels(plotData$plot_factor)
 
             # p-value table
-            groups <- unlist(str_split(pairs_plot$contrast, " - "))
+            groups <- unlist(str_split(m1_pairs_dt$contrast, " - "))
             # remove parentheses if they exist from group cols
             groups <- lapply(groups, remove_parentheses) |>
                 unlist()
             i_seq <- 1:length(groups)
-            pairs_plot[, group1 := groups[i_seq%%2 != 0] |>
+            m1_pairs_dt[, group1 := groups[i_seq%%2 != 0] |>
                            factor(levels = levels(plotData_full$plot_factor))]
-            pairs_plot[, group2 := groups[i_seq%%2 == 0] |>
+            m1_pairs_dt[, group2 := groups[i_seq%%2 == 0] |>
                            factor(levels = levels(plotData_full$plot_factor))]
-            pairs_plot[, minx := as.integer(group1) |> as.character()]
-            pairs_plot[, maxx := as.integer(group2) |> as.character()]
-            pairs_plot[, p.print := ifelse(p.value > 0.1,
+            m1_pairs_dt[, minx := as.integer(group1) |> as.character()]
+            m1_pairs_dt[, maxx := as.integer(group2) |> as.character()]
+            m1_pairs_dt[, p.print := ifelse(p.value > 0.1,
                                            p_format(round(p.value, digits = 2),
                                                     add.p = TRUE, leading.zero = FALSE, space = FALSE),
                                            p_format(round(p.value, digits = 3),
@@ -424,20 +464,23 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                 miny <- min(plotData[dataset == "exp_reps", y], na.rm = TRUE)
             }
             p_increment <- 0.05*(maxy - miny)
-            pairs_plot[, y_pos := maxy + .I * p_increment ]
+            m1_pairs_dt[, y_pos := maxy + .I * p_increment ]
 
             # add pairs_plot to plotData
             n_rows <- nrow(plotData) - nrow(pairs_plot)
-            n_col <- ncol(pairs_plot)
+            n_col <- ncol(m1_pairs_dt)
             add_na <- matrix(nrow = n_rows, ncol = n_col)
-            colnames(add_na) <- colnames(pairs_plot)
-            pairs_plot <- rbind(pairs_plot, add_na)
+            colnames(add_na) <- colnames(m1_pairs_dt)
+            m1_pairs_dt <- rbind(m1_pairs_dt, add_na)
 
-            plotData <- cbind(plotData, pairs_plot)
+            plotData <- cbind(plotData, m1_pairs_dt)
 
             image <- self$results$plot
             image$setState(plotData)
-
+            
+            image_check <- self$results$check
+            image_check$setState(m1)
+            
         },
         .plot=function(image, ...) {
           pal_okabe_ito <- c(
@@ -489,7 +532,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
               geom_sina(data = plotData[dataset == "tech_reps"],
                         aes(x = plot_factor_id, y = y),
                         scale = "width",
-                        width = jitter_spread,
+                        maxwidth = jitter_spread,
                         size = 1,
                         color = "gray",
                         show.legend = FALSE)
@@ -515,13 +558,23 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                                y.position = "y_pos",
                                xmin = "minx",
                                xmax = "maxx",
-                               size = 3,
+                               size = 4,
                                tip.length = 0.01)
           if(self$options$pal != "pal_ggplot"){
             plot <- plot +
               scale_color_manual(values = get(self$options$pal))
           }
           print(plot)
+          TRUE
+        },
+        .plot_check=function(image_check, ...){
+          m1 <- image_check$state
+          # check the model
+          check_m1 <- simulateResiduals(fittedModel = m1,
+                                        n = 250,
+                                        refit = FALSE)
+          g <- plot(check_m1)
+          print(g)
           TRUE
         })
 )

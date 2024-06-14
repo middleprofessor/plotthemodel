@@ -2,7 +2,7 @@ title: Plot The Model
 name: PTM
 jus: '3.0'
 stage: 0
-compilerMode: aggressive
+compilerMode: tame
 children:
   - type: VariableSupplier
     persistentItems: false
@@ -43,48 +43,77 @@ children:
             name: nest
             maxItemCount: 1
             isTarget: true
-  - type: LayoutBox
-    margin: large
+  - name: experimental_design
+    type: CollapseBox
+    label: Experimental Design
+    collapsed: false
+    stretchFactor: 1
     children:
-      - type: ComboBox
-        name: design
-  - type: LayoutBox
-    margin: large
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: design
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: subplot
+  - name: model_picker
+    type: CollapseBox
+    label: Model
+    collapsed: false
+    stretchFactor: 1
     children:
-      - type: ComboBox
-        name: model
-  - type: LayoutBox
-    margin: large
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: model
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: family
+  - name: contrasts_picker
+    type: CollapseBox
+    label: Contrasts
+    collapsed: false
+    stretchFactor: 1
     children:
-      - type: ComboBox
-        name: subplot
-  - type: LayoutBox
-    margin: large
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: CheckBox
+            name: trtvsctrl
+          - type: CheckBox
+            name: simple
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: adjust
+  - name: plot_elements
+    type: CollapseBox
+    label: Plot Elements
+    collapsed: true
+    stretchFactor: 1
     children:
-      - type: CheckBox
-        name: trtvsctrl
-      - type: CheckBox
-        name: simple
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: ComboBox
-        name: adjust
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: ComboBox
-        name: pal
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: CheckBox
-        name: tech_reps
-      - type: CheckBox
-        name: join_blocks
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: TextBox
-        name: y_label
-        format: string
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: ComboBox
+            name: pal
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: CheckBox
+            name: tech_reps
+          - type: CheckBox
+            name: join_blocks
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: TextBox
+            name: y_label
+            format: string
