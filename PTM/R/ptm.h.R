@@ -187,7 +187,8 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         model_notes = function() private$.items[["model_notes"]],
         coef = function() private$.items[["coef"]],
         emm = function() private$.items[["emm"]],
-        contrasts = function() private$.items[["contrasts"]]),
+        contrasts = function() private$.items[["contrasts"]],
+        check = function() private$.items[["check"]]),
     private = list(),
     public=list(
         initialize=function(options) {
@@ -225,7 +226,14 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$add(jmvcore::Preformatted$new(
                 options=options,
                 name="contrasts",
-                title="Model Contrasts"))}))
+                title="Model Contrasts"))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="check",
+                title="Check the Model",
+                width=500,
+                height=300,
+                renderFun=".plot_check"))}))
 
 PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "PTMBase",
@@ -277,6 +285,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$coef} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$emm} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$contrasts} \tab \tab \tab \tab \tab a preformatted \cr
+#'   \code{results$check} \tab \tab \tab \tab \tab an image \cr
 #' }
 #'
 #' @export

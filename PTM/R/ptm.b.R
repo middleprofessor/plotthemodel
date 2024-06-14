@@ -332,8 +332,6 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                 if(family_class == "generalized"){
                   y_hat <- predict(m1, new_data, type = "response")
                 }
-                # predict seems to predict the mean based on the error standard deviation so its random. What I
-                # want is simply the expected value given the model coefficients.
                 plotData_nest_means <- data.table(
                     dataset = "exp_reps",
                     y = y_hat,

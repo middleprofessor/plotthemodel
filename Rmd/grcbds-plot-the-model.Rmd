@@ -577,10 +577,10 @@ m2 <- glm(diameter ~ genotype,
 m2_emm <- emmeans(m2, specs = "genotype", type = "response")
 m2_pairs <- contrast(m2_emm,
                      method = "revpairwise")
-coef(m2)
-
-m0 <- lmer(diameter ~ genotype + (1 | mouse),
-            data = fake_data)
+          check_m2 <- simulateResiduals(fittedModel = m2,
+                                        n = 250,
+                                        refit = FALSE)
+          plot(check_m2)
 
 m3 <- glmer(diameter ~ genotype + (1 | mouse),
             family = Gamma(link = "log"),
@@ -588,6 +588,11 @@ m3 <- glmer(diameter ~ genotype + (1 | mouse),
 m3_emm <- emmeans(m3, specs = "genotype", type = "response")
 m3_pairs <- contrast(m3_emm,
                      method = "revpairwise")
+          check_m3 <- simulateResiduals(fittedModel = m3,
+                                        n = 250,
+                                        refit = FALSE)
+          plot(check_m3)
+
 
 m4 <- glmmTMB(diameter ~ genotype + (1 | mouse),
             family = Gamma(link = "log"),
@@ -595,6 +600,18 @@ m4 <- glmmTMB(diameter ~ genotype + (1 | mouse),
 m4_emm <- emmeans(m4, specs = "genotype", type = "response")
 m4_pairs <- contrast(m4_emm,
                      method = "revpairwise")
+
+m5 <- lmer(diameter ~ genotype + (1 | mouse),
+            data = fake_data)
+fd_means <- fake_data[, .(diameter = mean(diameter)), by = .(genotype, mouse)]
+fd_means[, diameter_model_lmer := predict(m5, fd_means)]
+
+m3 <- glmer(diameter ~ genotype + (1 | mouse),
+            family = Gamma(link = "log"),
+            data = fake_data)
+fd_means[, diameter_model_glmer := predict(m3, fd_means, type = "response")]
+fd_means
+
 
 outfile_name <- "crds-gamma.xlsx"
 outpath <- here(data_folder, outfile_name)

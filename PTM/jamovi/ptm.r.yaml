@@ -35,5 +35,11 @@ items:
       title: Model Contrasts
       type:  Preformatted
 
+    - name: check
+      title: Check the Model
+      type: Image
+      width: 500
+      height: 300
+      renderFun: .plot_check
 
 ...
