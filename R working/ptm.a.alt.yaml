@@ -1,0 +1,184 @@
+---
+name:  PTM
+title: Plot The Model
+menuGroup: Plot The Model
+version: '1.0.0'
+jas: '1.2'
+
+options:
+    - name: data
+      type: Data
+
+    - name: dep
+      title: Response (Dependent) Variable
+      type: Variable
+
+    - name: factor1
+      title: Factor 1
+      type: Variable
+
+    - name: factor2
+      title: Factor 2
+      type: Variable
+
+    - name: block
+      title: Block (or batch) ID
+      type: Variable
+
+    - name: nest
+      title: Nest ID
+      type: Variable
+
+    - name: crd
+      title: Completely Randomized (CRD)
+      type: List
+      options:
+        - title: Linear Model (lm)
+          name:  crd_lm
+        - title: Generalized Linear Model (glm)
+          name:  crd_glm
+      default: lm
+
+    - name: crds
+      title: Completely Randomized with Subsampling (CRDS)
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  crds_lmer
+        - title: Nested ANOVA (aov_4)
+          name:  crds_aov_4
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  crds_glmer
+      default: lmer
+
+    - name: rcbd
+      title: Randomized Complete Block (RCBD)
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  rcbd_lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  rcbd_aov_4
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  rcbd_glmer
+      default: lmer
+
+    - name: rcbds
+      title: Randomized Complete Block with Subsampling (RCBDS)
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  rcbds_lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  rcbds_aov_4
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  rcbds_glmer
+      default: lmer
+
+    - name: grcbd
+      title: Generalized Randomized Complete Block (GRCBD)
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  grcbd_lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  grcbd_aov_4
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  grcbd_glmer
+      default: lmer
+
+    - name: spd
+      title: Split Plot (SPD)
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  spd_lmer
+        - title: Paired-t / RM-ANOVA (aov_4)
+          name:  spd_aov_4
+        - title: Generalized Linear Mixed Model (glmer)
+          name:  spd_glmer
+      default: lmer
+
+    - name: subplot
+      title: If Split Plot...
+      type: List
+      options:
+        - title: Factor 1 is subplot
+          name:  subplot.eq.1
+        - title: factor 2 is subplot
+          name:  subplot.eq.2
+      default: subplot.eq.1
+
+    - name: family
+      title: Model Family
+      type: List
+      options:
+        - title: Normal
+          name:  norm
+        - title: Binomial (success/fail)
+          name:  binom
+        - title: Negative Binomial (counts)
+          name:  negbin
+        - title: Gamma (continuous)
+          name:  gamma
+      default: norm
+
+    - name: trtvsctrl
+      title: Treatment vs. Control (one factor only)
+      type: Bool
+      default: false
+
+    - name: simple
+      title: Simple Effects (two factors only)
+      type: Bool
+      default: true
+
+    - name: adjust
+      title: Adjust p-values
+      type: List
+      options:
+        - title: Default
+          name:  default
+        - title: None
+          name:  none
+        - title: Holm
+          name:  holm
+        - title: FDR
+          name:  fdr
+      default: default
+
+    - name: pal
+      title: Color palette
+      type: List
+      options:
+        - title: ggPlot
+          name:  pal_ggplot
+        - title: Okabe Ito
+          name:  pal_okabe_ito
+        - title: Okabe Ito Blue
+          name:  pal_okabe_ito_blue
+        - title: Nature
+          name:  pal_npg
+        - title: Science
+          name:  pal_aaas
+        - title: JCO
+          name:  pal_jco
+        - title: Frontiers
+          name:  pal_frontiers
+      default: pal_okabe_ito
+
+    - name: tech_reps
+      title: (For nested data) Show technical replicates
+      type: Bool
+      default: false
+
+    - name: join_blocks
+      title: (For paired/blocked data) Join paired/blocked data
+      type: Bool
+      default: false
+
+    - name: y_label
+      title: y-axis label
+      type: String
+
+...

@@ -549,8 +549,8 @@ fake_data <- simulator(
   family = "gamma",
   n_treat = 2, # number of treatment levels
   n_block = 1, # number of litters (blocks)
-  n_rep = 10, # number of mice per litter:treatment
-  n_ss = 80, # number of subsamples
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 5, # number of subsamples
   n_exp = 1, # number of experiments
   design = "pseudoreplicated",
   correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
@@ -571,49 +571,7 @@ m1_pairs <- contrast(m1_emm,
                      method = "revpairwise")
 ggplot_the_response(m1, m1_emm, m1_pairs)
 
-m2 <- glm(diameter ~ genotype,
-            family = Gamma(link = "log"),
-            data = fake_data)
-m2_emm <- emmeans(m2, specs = "genotype", type = "response")
-m2_pairs <- contrast(m2_emm,
-                     method = "revpairwise")
-          check_m2 <- simulateResiduals(fittedModel = m2,
-                                        n = 250,
-                                        refit = FALSE)
-          plot(check_m2)
-
-m3 <- glmer(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-m3_emm <- emmeans(m3, specs = "genotype", type = "response")
-m3_pairs <- contrast(m3_emm,
-                     method = "revpairwise")
-          check_m3 <- simulateResiduals(fittedModel = m3,
-                                        n = 250,
-                                        refit = FALSE)
-          plot(check_m3)
-
-
-m4 <- glmmTMB(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-m4_emm <- emmeans(m4, specs = "genotype", type = "response")
-m4_pairs <- contrast(m4_emm,
-                     method = "revpairwise")
-
-m5 <- lmer(diameter ~ genotype + (1 | mouse),
-            data = fake_data)
-fd_means <- fake_data[, .(diameter = mean(diameter)), by = .(genotype, mouse)]
-fd_means[, diameter_model_lmer := predict(m5, fd_means)]
-
-m3 <- glmer(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-fd_means[, diameter_model_glmer := predict(m3, fd_means, type = "response")]
-fd_means
-
-
-outfile_name <- "crds-gamma.xlsx"
+outfile_name <- "crds-gamma-test.xlsx"
 outpath <- here(data_folder, outfile_name)
 y_cols <- c("mouse", "technical_rep", "genotype", "diameter")
 write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)

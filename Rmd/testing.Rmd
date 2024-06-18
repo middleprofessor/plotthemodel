@@ -378,3 +378,81 @@ plotData_full[, lo := as.numeric(NA)]
 plotData_full[, hi := as.numeric(NA)]
 ```
 
+```{r}
+seed <- 1
+# sigma_e^2 = sigma_rep^2 + sigma_ss^2
+# icc = sigma_rep^2 / sigma_e^2
+icc <- 0.4
+sigma_e <- 10
+sigma_rep <- sqrt(icc*sigma_e^2)
+sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  family = "gamma",
+  n_treat = 2, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 10, # number of mice per litter:treatment
+  n_ss = 80, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(20, -5),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = sigma_rep, # among mouse variance
+  sigma_ss = sigma_ss, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, c("ss", "sim_1"), c("technical_rep", "diameter")) # cross-sectional area
+fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
+fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
+m1 <- lm(diameter ~ genotype, data = fake_data)
+m1_emm <- emmeans(m1, specs = "genotype")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs)
+
+m2 <- glm(diameter ~ genotype,
+            family = Gamma(link = "log"),
+            data = fake_data)
+m2_emm <- emmeans(m2, specs = "genotype", type = "response")
+m2_pairs <- contrast(m2_emm,
+                     method = "revpairwise")
+          check_m2 <- simulateResiduals(fittedModel = m2,
+                                        n = 250,
+                                        refit = FALSE)
+          plot(check_m2)
+
+m3 <- glmer(diameter ~ genotype + (1 | mouse),
+            family = Gamma(link = "log"),
+            data = fake_data)
+m3_emm <- emmeans(m3, specs = "genotype", type = "response")
+m3_pairs <- contrast(m3_emm,
+                     method = "revpairwise")
+          check_m3 <- simulateResiduals(fittedModel = m3,
+                                        n = 250,
+                                        refit = FALSE)
+          plot(check_m3)
+
+
+m4 <- glmmTMB(diameter ~ genotype + (1 | mouse),
+            family = Gamma(link = "log"),
+            data = fake_data)
+m4_emm <- emmeans(m4, specs = "genotype", type = "response")
+m4_pairs <- contrast(m4_emm,
+                     method = "revpairwise")
+
+m5 <- lmer(diameter ~ genotype + (1 | mouse),
+            data = fake_data)
+fd_means <- fake_data[, .(diameter = mean(diameter)), by = .(genotype, mouse)]
+fd_means[, diameter_model_lmer := predict(m5, fd_means)]
+
+m3 <- glmer(diameter ~ genotype + (1 | mouse),
+            family = Gamma(link = "log"),
+            data = fake_data)
+fd_means[, diameter_model_glmer := predict(m3, fd_means, type = "response")]
+fd_means
+```
+
