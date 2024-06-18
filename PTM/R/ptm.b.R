@@ -60,13 +60,27 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       model_data[, factor_2 := ifelse(two_factors == TRUE,
                                      get(factor2_label),
                                      NA)]
+      model_data[, plot_factor := ifelse(two_factors == TRUE,
+                                      paste(factor_1, factor_2,
+                                            sep = "\n"),
+                                      factor_1)]
       model_data[, block_id := ifelse(include_block == TRUE,
                                    get(block_label),
                                    NA)]
       model_data[, nest_id := ifelse(include_nest == TRUE,
                                      get(nest_label),
                                      NA)]
-
+      # reorder factor levels for 2-factor plots
+      levels_1 <- levels(model_data$factor_1) |>
+        as.character()
+      levels_2 <- levels(model_data$factor_2) |>
+        as.character()
+      levels_table <- expand.grid(levels_1, levels_2, stringsAsFactors = FALSE) |>
+        data.table()
+      levels_table[, plot_levels := paste(Var1, Var2, sep = "\n")]
+      model_data[, plot_factor := factor(plot_factor,
+                                            levels = levels_table[, plot_levels])]
+      
       
       # model_options
       the_design <- self$options$design
