@@ -53,6 +53,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       the_design <- self$options$design
       the_model <- self$options$model
       model_family <- self$options$family
+      mb_hints_all <- ifelse(self$options$mb_hints == TRUE, FALSE, TRUE)
       
       # plot options
       plot_trt.vs.ctrl <- ifelse(self$options$trtvsctrl == TRUE,
@@ -85,7 +86,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       family_class <- ifelse(the_model == "glm" | the_model == "glmer", "generalized", "general")
       
       # model builder notes
-      mb_notes_level = 1 # 0 is no notes, 1 is corrective, 2 is all
+      mb_notes_level <- 2 # 1 is corrective, 2 is all
       mb_notes_str <- "no notes"
       working_model <- TRUE
       if(is.null(response_label) & is.null(factor1_label)){
@@ -105,14 +106,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           mb_notes_str <- "This is a Completely Randomized Design."
           # mb_notes_str <- paste(mb_notes_str,
           #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
-          if (mb_notes_level == 2 | model_class != "fixed"){
+          if (mb_hints_all == TRUE | model_class != "fixed"){
             add_str <- "\n -- Model this with lm or glm in the Model picker."
             mb_notes_str <- paste(mb_notes_str, add_str)
             if(model_class != "fixed"){
               working_model <- FALSE
             }
           }
-          if(mb_notes_level == 2 | (family_class == "general" & model_family != "norm")){
+          if(mb_hints_all == TRUE | (family_class == "general" & model_family != "norm")){
             add_str <- "\n -- lm requires Model Family: Normal in the Model picker."
             mb_notes_str <- paste(mb_notes_str, add_str)
             if(family_class == "general" & model_family != "norm"){
@@ -124,14 +125,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           mb_notes_str <- "This is a Completely Randomized Design with Subsampling."
           # mb_notes_str <- paste(mb_notes_str,
           #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
-          if (mb_notes_level == 2 | model_class == "fixed"){
+          if (mb_hints_all == TRUE | model_class == "fixed"){
             add_str <- "\n -- Model this with lmer, aov_4, or glmer in the Model picker."
             mb_notes_str <- paste(mb_notes_str, add_str)
             if(model_class == "fixed"){
               working_model <- FALSE
             }
           }
-          if(mb_notes_level == 2 | (family_class == "general" & model_family != "norm")){
+          if(mb_hints_all == TRUE | (family_class == "general" & model_family != "norm")){
             add_str <- "\n -- lmer / aov_4 require Model Family: Normal in the Model picker."
             mb_notes_str <- paste(mb_notes_str, add_str)
             if(family_class == "general" & model_family != "norm"){

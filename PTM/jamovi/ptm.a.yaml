@@ -91,6 +91,11 @@ options:
           name:  gamma
       default: norm
 
+    - name: mb_hints
+      title: Show only corrective hints
+      type: Bool
+      default: false
+
     - name: trtvsctrl
       title: Treatment vs. Control (one factor only)
       type: Bool

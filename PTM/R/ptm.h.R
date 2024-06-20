@@ -15,6 +15,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             subplot = "subplot.eq.1",
             model = "lm",
             family = "norm",
+            mb_hints = FALSE,
             trtvsctrl = FALSE,
             simple = TRUE,
             adjust = "default",
@@ -83,6 +84,10 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "negbin",
                     "gamma"),
                 default="norm")
+            private$..mb_hints <- jmvcore::OptionBool$new(
+                "mb_hints",
+                mb_hints,
+                default=FALSE)
             private$..trtvsctrl <- jmvcore::OptionBool$new(
                 "trtvsctrl",
                 trtvsctrl,
@@ -133,6 +138,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..subplot)
             self$.addOption(private$..model)
             self$.addOption(private$..family)
+            self$.addOption(private$..mb_hints)
             self$.addOption(private$..trtvsctrl)
             self$.addOption(private$..simple)
             self$.addOption(private$..adjust)
@@ -151,6 +157,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         subplot = function() private$..subplot$value,
         model = function() private$..model$value,
         family = function() private$..family$value,
+        mb_hints = function() private$..mb_hints$value,
         trtvsctrl = function() private$..trtvsctrl$value,
         simple = function() private$..simple$value,
         adjust = function() private$..adjust$value,
@@ -168,6 +175,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..subplot = NA,
         ..model = NA,
         ..family = NA,
+        ..mb_hints = NA,
         ..trtvsctrl = NA,
         ..simple = NA,
         ..adjust = NA,
@@ -200,7 +208,7 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$add(jmvcore::Preformatted$new(
                 options=options,
                 name="model_builder_notes",
-                title="Model Builder Notes"))
+                title="Model Builder Hints"))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="plot",
@@ -274,6 +282,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param subplot .
 #' @param model .
 #' @param family .
+#' @param mb_hints .
 #' @param trtvsctrl .
 #' @param simple .
 #' @param adjust .
@@ -306,6 +315,7 @@ PTM <- function(
     subplot = "subplot.eq.1",
     model = "lm",
     family = "norm",
+    mb_hints = FALSE,
     trtvsctrl = FALSE,
     simple = TRUE,
     adjust = "default",
@@ -342,6 +352,7 @@ PTM <- function(
         subplot = subplot,
         model = model,
         family = family,
+        mb_hints = mb_hints,
         trtvsctrl = trtvsctrl,
         simple = simple,
         adjust = adjust,

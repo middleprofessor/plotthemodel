@@ -75,6 +75,8 @@ children:
         children:
           - type: ComboBox
             name: family
+      - type: CheckBox
+        name: mb_hints
   - name: contrasts_picker
     type: CollapseBox
     label: Contrasts

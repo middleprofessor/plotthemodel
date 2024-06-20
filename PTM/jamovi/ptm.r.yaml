@@ -5,7 +5,7 @@ jrs:   '1.1'
 
 items:
     - name: model_builder_notes
-      title: Model Builder Notes
+      title: Model Builder Hints
       type: Preformatted
 
     - name: plot
