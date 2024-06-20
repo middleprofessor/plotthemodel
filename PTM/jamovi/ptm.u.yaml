@@ -96,7 +96,7 @@ children:
   - name: plot_elements
     type: CollapseBox
     label: Plot Elements
-    collapsed: true
+    collapsed: false
     stretchFactor: 1
     children:
       - type: LayoutBox

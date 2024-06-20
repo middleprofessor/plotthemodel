@@ -26,7 +26,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         return(x)
       }
       
-      model_builder_notes_string <- ""
+      mb_notes_str <- ""
       plot_notes_string <- ""
       model_notes_string <- ""
       # print model
@@ -52,7 +52,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       # model_options
       the_design <- self$options$design
       the_model <- self$options$model
-      the_family <- self$options$family
+      model_family <- self$options$family
       
       # plot options
       plot_trt.vs.ctrl <- ifelse(self$options$trtvsctrl == TRUE,
@@ -65,7 +65,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       
       plot_notes_string <- paste("The 95% confidence intervals are computed from the model error (sigma)",
                                  "and not from the sample standard error of each group.", sep = "\n ")
-      if(the_family == "norm"){
+      if(model_family == "norm"){
         model_notes_string <- paste("The fit model assumes Independent and Identically Distributed (IID) responses",
                                     "(the Normal, Homogenous variance, Independent assumption) that is, each conditional response",
                                     "was independently sampled from the same, normal distribution")
@@ -73,48 +73,74 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       model_notes_string <- ""
       
       # fixed, mixed, or anova
+      if(the_model == "lm" | the_model == "glm"){
+        model_class <- "fixed"
+      }
       if(the_model == "aov_4"){
         model_class <- "anova"
-      }else{
-        model_class <- ifelse(include_block == TRUE | include_nest == TRUE, "mixed", "fixed")
+      }
+      if(the_model == "lmer" | the_model == "glmer"){
+        model_class <- "mixed"
       }
       family_class <- ifelse(the_model == "glm" | the_model == "glmer", "generalized", "general")
       
       # model builder notes
-      model_builder_notes_string <- "no notes"
+      mb_notes_level = 1 # 0 is no notes, 1 is corrective, 2 is all
+      mb_notes_str <- "no notes"
       working_model <- TRUE
       if(is.null(response_label) & is.null(factor1_label)){
-        model_builder_notes_string <- "A response variable and a factor variable need to be chosen"
+        mb_notes_str <- "A response variable and a factor variable need to be chosen"
         working_model <- FALSE
       }
       if(is.null(response_label) & !is.null(factor1_label)){
-        model_builder_notes_string <- "A response variable needs to be chosen"
+        mb_notes_str <- "A response variable needs to be chosen"
         working_model <- FALSE
       }
       if(!is.null(response_label) & is.null(factor1_label)){
-        model_builder_notes_string <- "A factor variable needs to be chosen"
+        mb_notes_str <- "A factor variable needs to be chosen"
         working_model <- FALSE
       }
-      if(include_nest == FALSE & include_block == FALSE){
-        model_builder_notes_string <- "This is a Completely Randomized Design."
-        # model_builder_notes_string <- paste(model_builder_notes_string,
-        #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
-        model_builder_notes_string <- paste(model_builder_notes_string,
-                                            "\n 1. Choose lm or glm in the Model picker.")
-        if(the_model == "lmer" | the_model == "glmer" | the_model == "aov_4" ){
-          working_model <- FALSE}
-        the_design <- "crd"
+      if(working_model == TRUE){
+        if(include_nest == FALSE & include_block == FALSE){
+          mb_notes_str <- "This is a Completely Randomized Design."
+          # mb_notes_str <- paste(mb_notes_str,
+          #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
+          if (mb_notes_level == 2 | model_class != "fixed"){
+            add_str <- "\n -- Model this with lm or glm in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(model_class != "fixed"){
+              working_model <- FALSE
+            }
+          }
+          if(mb_notes_level == 2 | (family_class == "general" & model_family != "norm")){
+            add_str <- "\n -- lm requires Model Family: Normal in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "general" & model_family != "norm"){
+              working_model <- FALSE}
+          }
+          the_design <- "crd"
+        }
+        if(include_nest == TRUE & include_block == FALSE){
+          mb_notes_str <- "This is a Completely Randomized Design with Subsampling."
+          # mb_notes_str <- paste(mb_notes_str,
+          #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
+          if (mb_notes_level == 2 | model_class == "fixed"){
+            add_str <- "\n -- Model this with lmer, aov_4, or glmer in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(model_class == "fixed"){
+              working_model <- FALSE
+            }
+          }
+          if(mb_notes_level == 2 | (family_class == "general" & model_family != "norm")){
+            add_str <- "\n -- lmer / aov_4 require Model Family: Normal in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "general" & model_family != "norm"){
+              working_model <- FALSE}
+          }
+          the_design <- "crds"
+        }
       }
-      if(include_nest == TRUE & include_block == FALSE){
-        model_builder_notes_string <- "This is a Completely Randomized Design with Subsampling."
-        # model_builder_notes_string <- paste(model_builder_notes_string,
-        #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
-        model_builder_notes_string <- paste(model_builder_notes_string,
-                                            "\n 1. Choose lmer, aov_4, or glmer in the Model picker.")
-        if(the_model == "lm" | the_model == "glm"){working_model <- FALSE}
-        the_design <- "crds"
-      }
-      
+       
       if(working_model == TRUE){
         y_cols <- c(response_label, factor1_label)
         if(two_factors == TRUE){y_cols <- c(y_cols, factor2_label)}
@@ -258,7 +284,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         # print model formula
         family_string <- ""
         if(family_class == "generalized"){
-          if(the_family == "gamma"){
+          if(model_family == "gamma"){
             family_string <- ', family = Gamma(link = "log")'
           }
         }
@@ -270,19 +296,19 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       if(working_model == TRUE){
         model_formula <- formula_string |>
           as.formula()
-        if(the_model == "lm" & the_family == "norm"){
+        if(the_model == "lm" & model_family == "norm"){
           m1 <- lm(model_formula, model_data)
         }
-        if(the_model == "glm" & the_family == "gamma"){
+        if(the_model == "glm" & model_family == "gamma"){
           m1 <- glm(model_formula, family = Gamma(link = "log"), model_data)
         }
-        if(the_model == "lmer" & the_family == "norm"){
+        if(the_model == "lmer" & model_family == "norm"){
           m1 <- lmer(model_formula, model_data)
         }
-        if(the_model == "glmer" & the_family == "gamma"){
+        if(the_model == "glmer" & model_family == "gamma"){
           m1 <- glmer(model_formula, family = Gamma(link = "log"), model_data)
         }
-        if(the_model == "aov_4" & the_family == "norm"){
+        if(the_model == "aov_4" & model_family == "norm"){
           m1 <- aov_4(model_formula, model_data)
         }
         
@@ -337,7 +363,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       }
       
       # print model builder notes
-      self$results$model_builder_notes$setContent(model_builder_notes_string)
+      self$results$model_builder_notes$setContent(mb_notes_str)
       # print plot notes
       self$results$plot_notes$setContent(plot_notes_string)
       # print model notes
@@ -590,7 +616,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           if(the_model == "lmer"){
             m1_check <- lm(model_formula, new_data)
           }
-          if(the_model == "glmer" & the_family == "gamma"){
+          if(the_model == "glmer" & model_family == "gamma"){
             m1_check <- glm(model_formula,
                             family = Gamma(link = "log"),
                             new_data)
