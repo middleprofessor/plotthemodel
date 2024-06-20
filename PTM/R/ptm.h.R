@@ -16,6 +16,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             model = "lm",
             family = "norm",
             mb_hints = FALSE,
+            check_the_model = TRUE,
             trtvsctrl = FALSE,
             simple = TRUE,
             adjust = "default",
@@ -88,6 +89,10 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "mb_hints",
                 mb_hints,
                 default=FALSE)
+            private$..check_the_model <- jmvcore::OptionBool$new(
+                "check_the_model",
+                check_the_model,
+                default=TRUE)
             private$..trtvsctrl <- jmvcore::OptionBool$new(
                 "trtvsctrl",
                 trtvsctrl,
@@ -139,6 +144,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..model)
             self$.addOption(private$..family)
             self$.addOption(private$..mb_hints)
+            self$.addOption(private$..check_the_model)
             self$.addOption(private$..trtvsctrl)
             self$.addOption(private$..simple)
             self$.addOption(private$..adjust)
@@ -158,6 +164,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         model = function() private$..model$value,
         family = function() private$..family$value,
         mb_hints = function() private$..mb_hints$value,
+        check_the_model = function() private$..check_the_model$value,
         trtvsctrl = function() private$..trtvsctrl$value,
         simple = function() private$..simple$value,
         adjust = function() private$..adjust$value,
@@ -176,6 +183,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..model = NA,
         ..family = NA,
         ..mb_hints = NA,
+        ..check_the_model = NA,
         ..trtvsctrl = NA,
         ..simple = NA,
         ..adjust = NA,
@@ -283,6 +291,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param model .
 #' @param family .
 #' @param mb_hints .
+#' @param check_the_model .
 #' @param trtvsctrl .
 #' @param simple .
 #' @param adjust .
@@ -316,6 +325,7 @@ PTM <- function(
     model = "lm",
     family = "norm",
     mb_hints = FALSE,
+    check_the_model = TRUE,
     trtvsctrl = FALSE,
     simple = TRUE,
     adjust = "default",
@@ -353,6 +363,7 @@ PTM <- function(
         model = model,
         family = family,
         mb_hints = mb_hints,
+        check_the_model = check_the_model,
         trtvsctrl = trtvsctrl,
         simple = simple,
         adjust = adjust,

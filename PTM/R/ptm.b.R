@@ -54,6 +54,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       the_model <- self$options$model
       model_family <- self$options$family
       mb_hints_all <- ifelse(self$options$mb_hints == TRUE, FALSE, TRUE)
+      check_the_model <- ifelse(self$options$check_the_model == TRUE, TRUE, FALSE)
       
       # plot options
       plot_trt.vs.ctrl <- ifelse(self$options$trtvsctrl == TRUE,
@@ -85,6 +86,32 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       }
       family_class <- ifelse(the_model == "glm" | the_model == "glmer", "generalized", "general")
       
+      # response variable type
+      y <- self$data[, response_label]
+#      y <- self$data[[self$options$dep]]
+      y_type <- "character"
+      if(length(unique(y)) == 2){
+        y_type <- "binary"
+      }
+      if(y_type != "binary"){
+        if(min(y) >= 0 & max(y) <= 1){
+          y_type <- "proportion"
+        }
+        if(all(round(y, 0) == y) & min(y) >= 0){
+          y_type <- "count"
+          y_family_long <- "Negative Binomial or Quasipoisson"
+          y_family <- "negbin"
+        }
+        if(any(round(y, 0) != y) & min(y) > 0 & max(y) > 1){
+          y_type <- "positive continuous"
+          y_family_long <- "Gamma"
+          y_family <- "gamma"
+        }
+        if(any(round(y, 0) != y) & min(y) <= 0){
+          y_type <- "continuous"
+        }
+      }
+      
       # model builder notes
       mb_notes_level <- 2 # 1 is corrective, 2 is all
       mb_notes_str <- "no notes"
@@ -103,7 +130,9 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       }
       if(working_model == TRUE){
         if(include_nest == FALSE & include_block == FALSE){
-          mb_notes_str <- "This is a Completely Randomized Design."
+          mb_notes_str <- paste("This is a Completely Randomized Design with a",
+                                y_type,
+                                "response.")
           # mb_notes_str <- paste(mb_notes_str,
           #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
           if (mb_hints_all == TRUE | model_class != "fixed"){
@@ -119,10 +148,20 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             if(family_class == "general" & model_family != "norm"){
               working_model <- FALSE}
           }
+          if(mb_hints_all == TRUE | (family_class == "generalized" & model_family != y_family)){
+            add_str <- paste("\n -- glm should use Model Family:",
+                             y_family_long,
+                             "in the Model picker.")
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "generalized" & model_family != y_family){
+              working_model <- FALSE}
+          }
           the_design <- "crd"
         }
         if(include_nest == TRUE & include_block == FALSE){
-          mb_notes_str <- "This is a Completely Randomized Design with Subsampling."
+          mb_notes_str <- paste("This is a subsampled Completely Randomized Design with a",
+                                y_type,
+                                "response.")
           # mb_notes_str <- paste(mb_notes_str,
           #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
           if (mb_hints_all == TRUE | model_class == "fixed"){
@@ -136,6 +175,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
             add_str <- "\n -- lmer / aov_4 require Model Family: Normal in the Model picker."
             mb_notes_str <- paste(mb_notes_str, add_str)
             if(family_class == "general" & model_family != "norm"){
+              working_model <- FALSE}
+          }
+          if(mb_hints_all == TRUE | (family_class == "generalized" & model_family != y_family)){
+            add_str <- paste("\n -- glmer should use Model Family:",
+                             y_family_long,
+                             "in the Model picker.")
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "generalized" & model_family != y_family){
               working_model <- FALSE}
           }
           the_design <- "crds"
@@ -611,19 +658,10 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       # use nest means if there are subsampled reps
       m1_check <- NULL
       if(working_model == TRUE){
-        if(include_nest == TRUE){
-          model_formula <- paste(response_label, "~", fixed_part) |>
-            as.formula()
-          if(the_model == "lmer"){
-            m1_check <- lm(model_formula, new_data)
-          }
-          if(the_model == "glmer" & model_family == "gamma"){
-            m1_check <- glm(model_formula,
-                            family = Gamma(link = "log"),
-                            new_data)
-          }
-        }else{
+        if(check_the_model == TRUE){
           m1_check <- copy(m1)
+        }else{
+          m1_check <- NULL
         }
         do_model_check <- TRUE
         if(do_model_check == TRUE){

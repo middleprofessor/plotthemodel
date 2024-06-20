@@ -77,6 +77,8 @@ children:
             name: family
       - type: CheckBox
         name: mb_hints
+      - type: CheckBox
+        name: check_the_model
   - name: contrasts_picker
     type: CollapseBox
     label: Contrasts

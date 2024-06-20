@@ -96,6 +96,11 @@ options:
       type: Bool
       default: false
 
+    - name: check_the_model
+      title: Check the Model (uncheck if plot spins for more than few seconds)
+      type: Bool
+      default: true
+
     - name: trtvsctrl
       title: Treatment vs. Control (one factor only)
       type: Bool
