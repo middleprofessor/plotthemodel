@@ -29,6 +29,28 @@ options:
       title: Nest ID
       type: Variable
 
+    - name: lm_model
+      title: No nested or paired/blocked data
+      type: List
+      options:
+        - title: Linear Model (lm)
+          name:  lm_pick
+      default: lm_pick
+
+    - name: lmm_model
+      title: Nested or paired/blocked data
+      type: List
+      options:
+        - title: Linear Mixed Model (lmer)
+          name:  lmer_pick
+        - title: Nested ANOVA (aov_4)
+          name:  aov_4_pick
+      default: lmer_pick
+
+    - name: nest
+      title: Nest ID
+      type: Variable
+
     - name: design
       title: Experimental Design
       type: List
@@ -69,7 +91,7 @@ options:
           name:  lm
         - title: Linear Mixed Model (lmer)
           name:  lmer
-        - title: Paired-t / RM-ANOVA / Nested ANOVA (aov_4)
+        - title: Paired-t / RM-ANOVA (aov_4)
           name:  aov_4
         - title: Generalized Linear Model (glm)
           name:  glm

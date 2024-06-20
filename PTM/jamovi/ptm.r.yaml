@@ -4,6 +4,10 @@ title: Plot The Model
 jrs:   '1.1'
 
 items:
+    - name: model_builder_notes
+      title: Model Builder Notes
+      type: Preformatted
+
     - name: plot
       title: Plot the Model
       type: Image

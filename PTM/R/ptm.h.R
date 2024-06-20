@@ -10,7 +10,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             factor1 = NULL,
             factor2 = NULL,
             block = NULL,
-            nest = NULL,
+            nest_id = NULL,
             design = "crd",
             subplot = "subplot.eq.1",
             model = "lm",
@@ -41,9 +41,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..block <- jmvcore::OptionVariable$new(
                 "block",
                 block)
-            private$..nest <- jmvcore::OptionVariable$new(
-                "nest",
-                nest)
+            private$..nest_id <- jmvcore::OptionVariable$new(
+                "nest_id",
+                nest_id)
             private$..design <- jmvcore::OptionList$new(
                 "design",
                 design,
@@ -128,7 +128,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..factor1)
             self$.addOption(private$..factor2)
             self$.addOption(private$..block)
-            self$.addOption(private$..nest)
+            self$.addOption(private$..nest_id)
             self$.addOption(private$..design)
             self$.addOption(private$..subplot)
             self$.addOption(private$..model)
@@ -146,7 +146,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         factor1 = function() private$..factor1$value,
         factor2 = function() private$..factor2$value,
         block = function() private$..block$value,
-        nest = function() private$..nest$value,
+        nest_id = function() private$..nest_id$value,
         design = function() private$..design$value,
         subplot = function() private$..subplot$value,
         model = function() private$..model$value,
@@ -163,7 +163,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..factor1 = NA,
         ..factor2 = NA,
         ..block = NA,
-        ..nest = NA,
+        ..nest_id = NA,
         ..design = NA,
         ..subplot = NA,
         ..model = NA,
@@ -181,6 +181,7 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "PTMResults",
     inherit = jmvcore::Group,
     active = list(
+        model_builder_notes = function() private$.items[["model_builder_notes"]],
         plot = function() private$.items[["plot"]],
         plot_notes = function() private$.items[["plot_notes"]],
         model = function() private$.items[["model"]],
@@ -196,6 +197,10 @@ PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 options=options,
                 name="",
                 title="Plot The Model")
+            self$add(jmvcore::Preformatted$new(
+                options=options,
+                name="model_builder_notes",
+                title="Model Builder Notes"))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="plot",
@@ -264,7 +269,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param factor1 .
 #' @param factor2 .
 #' @param block .
-#' @param nest .
+#' @param nest_id .
 #' @param design .
 #' @param subplot .
 #' @param model .
@@ -278,6 +283,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param y_label .
 #' @return A results object containing:
 #' \tabular{llllll}{
+#'   \code{results$model_builder_notes} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$plot} \tab \tab \tab \tab \tab an image \cr
 #'   \code{results$plot_notes} \tab \tab \tab \tab \tab a preformatted \cr
 #'   \code{results$model} \tab \tab \tab \tab \tab a preformatted \cr
@@ -295,7 +301,7 @@ PTM <- function(
     factor1,
     factor2,
     block,
-    nest,
+    nest_id,
     design = "crd",
     subplot = "subplot.eq.1",
     model = "lm",
@@ -315,7 +321,7 @@ PTM <- function(
     if ( ! missing(factor1)) factor1 <- jmvcore::resolveQuo(jmvcore::enquo(factor1))
     if ( ! missing(factor2)) factor2 <- jmvcore::resolveQuo(jmvcore::enquo(factor2))
     if ( ! missing(block)) block <- jmvcore::resolveQuo(jmvcore::enquo(block))
-    if ( ! missing(nest)) nest <- jmvcore::resolveQuo(jmvcore::enquo(nest))
+    if ( ! missing(nest_id)) nest_id <- jmvcore::resolveQuo(jmvcore::enquo(nest_id))
     if (missing(data))
         data <- jmvcore::marshalData(
             parent.frame(),
@@ -323,7 +329,7 @@ PTM <- function(
             `if`( ! missing(factor1), factor1, NULL),
             `if`( ! missing(factor2), factor2, NULL),
             `if`( ! missing(block), block, NULL),
-            `if`( ! missing(nest), nest, NULL))
+            `if`( ! missing(nest_id), nest_id, NULL))
 
 
     options <- PTMOptions$new(
@@ -331,7 +337,7 @@ PTM <- function(
         factor1 = factor1,
         factor2 = factor2,
         block = block,
-        nest = nest,
+        nest_id = nest_id,
         design = design,
         subplot = subplot,
         model = model,
