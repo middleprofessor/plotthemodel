@@ -210,8 +210,11 @@ m1 <- lm(csa ~ treatment, data = fake_data)
 m1_emm <- emmeans(m1, specs = "treatment")
 m1_pairs <- contrast(m1_emm,
                      method = "revpairwise")
-ggplot_the_response(m1, m1_emm, m1_pairs)
+ggplot_the_response(m1, m1_emm, m1_pairs, dots = "sina", jitter_width = 0.5)
+ggplot_the_response(m1, m1_emm, m1_pairs, dots = "jitter", jitter_width = 0.2)
 
+fake_data[, surgery := factor(surgery, levels = c("Intact", "Denerv"))]
+fake_data[, genotype := factor(genotype, levels = c("LONP1", "mKO"))]
 m1 <- lm(csa ~ surgery * genotype, data = fake_data)
 m1_emm <- emmeans(m1, specs = c("surgery", "genotype"))
 m1_pairs <- contrast(m1_emm,

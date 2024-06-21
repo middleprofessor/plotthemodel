@@ -206,7 +206,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           the_design <- "rcbd"
         }
       }
-      
+       
       if(working_model == TRUE){
         
         model_data <- create_model_data(self$data,
@@ -220,7 +220,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                                         include_nest
         )
       }
-      
+
+
       # Stats output
       if(working_model == TRUE){
         # get formulas
@@ -330,7 +331,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         }
         model_string <- paste0(the_model, "(", formula_string, family_string, ")")
       }
-      
+       
       
       # fit model
       if(working_model == TRUE){
@@ -641,12 +642,10 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       if(working_model == FALSE){
         plotData <- NULL
       }
-      #     if(working_model == TRUE){
-      image <- self$results$plot
-      # image$setState(plotData)
-      model_list <- list(m1, m1_emm)
-      image$setState(model_list)
-      #      }
+ #     if(working_model == TRUE){
+        image <- self$results$plot
+        image$setState(plotData)
+#      }
       
       # prepare m1_check model for check_the_model
       # use nest means if there are subsampled reps
@@ -665,19 +664,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         }
       }
       
-      ### DEBUG ONLY remove this when 
-      m1_check <- NULL
-      
     },
     .plot=function(image, ...) {
-      model_list <- image$state
-      m1 <- model_list[[1]]
-      m1_emm <- model_list[[2]]
-      gg <- plot_response(m1, m1_emm)
-      print(gg)
-      TRUE
-    },
-    .plot2=function(image, ...) {
       pal_okabe_ito <- c(
         "#E69F00",
         "#56B4E9",

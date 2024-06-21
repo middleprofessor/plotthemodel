@@ -46,7 +46,7 @@ children:
   - name: experimental_design
     type: CollapseBox
     label: Experimental Design
-    collapsed: false
+    collapsed: true
     stretchFactor: 1
     children:
       - type: LayoutBox

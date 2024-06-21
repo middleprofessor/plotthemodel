@@ -1,4 +1,4 @@
-## ----setup, include=TRUE---------------------------------------------------------------------------------------
+## ----setup, include=TRUE-----------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
 
 # wrangling
@@ -39,7 +39,310 @@ pal_okabe_ito_4 <- pal_okabe_ito[c(5,6,7,2)]
 
 
 
-## ----pairwise_paired_tt----------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
+# this is the official simulator function from grcbds.Rmd in the book
+simulator <- function(
+  seed_i = 1,
+  n_sim = 1,
+  n_treat = 3, # tau
+  n_block = 6, # beta_1, number of (nested) blocks
+  n_rep = 1, # eta, number of experimental replicates
+  n_ss = 1, # epsilon, number of subsamples within each block:treatment.
+  n_exp = 1, # number of experiments
+  design = "rcbd", # if rcbd, then all treatments within block. If "pseudoreplicated", then single treatment per block and all replicates within block are subsamples.
+  unique_id = TRUE, # give unique ids to values of all factors
+  treatment_crossed_with = "block", # not used. alternat is "rep". If "block" then treatment is applied to block and reps across block:treatment differ. If "rep" then treatment is applied to subblock (the replicate) and reps across block:treatment are same. This makes "rep" a block nested within "block"
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 0, 0), # effects
+  gamma = c(0.5, 0.5), # sd of random intercept and slopes for non-ref
+  rho = c(0.6, 0.6, 0.6), # r between random intercept and slopes
+  sigma_exp = 0, # sd among experiments
+  sigma_exp.block = 1, # sd among exp:block (or block if n_exp = 1)
+  sigma_exp.treat = 0, # sd among exp:treat
+  sigma_exp.block.treat = c(0), # sd among exp:block:treat, this can be a vector
+  # (or block:treat if n_exp = 1). If not a vector, then vector created with value for each treatment. This creates heterogeneity of correlation
+  sigma_rep = 0, # sd among experimental replicates of treatment:block
+  sigma_ss = 0.3, # sd among subsamples within replication of treatment:block
+  equal_n = TRUE,
+  exp_name = "exp",
+  block_name = "block",
+  rep_name = "rep",
+  ss_name = "ss"
+){
+  # 1. default beta is for n_treat = 2. If > 2 then default adds 0 for each added level
+  # 2. default sigma is 1 for all treatment levels. Can specify heterogeneity by sending vector with sigma for each level of treatment
+  # 3. if correlated_slopes = TRUE, then default gamma c(0.5, 0.5) is sd for intercept (first element) and same slope (2nd element) for all non-reference levels. Can specify detail by sending vector with value for intercept in cell one and non-reference slopes in all other cells.
+  #  if correlated_slopes = FALSE, then default gamma c(0.5, 0.5) is sd for block (first element) and treatment:block combinations (2nd element).
+  # 4. default rho is 0.6 for all correlations between intercept and slopes and between slopes. Can specify by sending vector equivalent to lower triangular of correlation matrix
+  if(n_treat > 2 & length(beta) == 2){# fill out beta
+    beta <- c(beta, rep(0, n_treat-2))
+  }
+  if(length(sigma_exp.block.treat) == 1){#
+    sigma_exp.block.treat <- rep(sigma_exp.block.treat, n_treat)
+  }
+  if(length(gamma) == 2 &
+     design == "rcbd" &
+     correlated_slopes == TRUE &
+     n_treat > 2){# fill out gamma
+    gamma <- c(gamma[1], rep(gamma[2], (n_treat - 1)))
+  }
+  if(length(rho) == 1){# fill out rho
+    rho <- rep(rho, n_treat*(n_treat-1)/2)
+  }
+  if(length(sigma_ss) == 1){# fill out rho
+    sigma_ss <- rep(sigma_ss, n_treat)
+  }
+  
+  
+  N_reps <- n_block * n_treat * n_rep * n_exp
+  N <- N_reps * n_ss
+  # returns N by n_sim matrix of fake data. Each sim is in its own column. The first two columns are treatment and block 
+  treatment_levels <- c("Cn", "Tr1", "Tr2", "Tr3")[1:n_treat]
+
+  # if reps in blocks are experimental
+  if(design == "rcbd"){
+    exp_levels <- paste0(exp_name,
+                          sprintf("%02d", 1:n_exp))
+    block_levels <- paste0(block_name,
+                          sprintf("%02d", 1:n_block))
+    block.treat <- do.call(paste, expand.grid(block_levels,
+                                              treatment_levels))
+    rep_levels <- paste0(rep_name,
+                         sprintf("%02d", 1:n_rep))
+  }
+  # if reps in blocks are technical
+  if(design == "pseudoreplicated"){
+    if(n_block == 1){
+      block_levels <- paste0(block_name,
+                             sprintf("%02d", 1:n_block))
+    }else{
+      block_levels <- paste0(block_name,
+                             sprintf("%02d", 1:(n_block*n_treat)))
+    }
+      exp_levels <- paste0(exp_name,
+                           sprintf("%02d", 1:n_exp))
+      block.treat = paste(rep(block_levels, each = n_treat),
+                          treatment_levels)
+      rep_levels <- paste0(rep_name,
+                           sprintf("%02d", 1:n_rep))
+  }   
+  ss_levels <- paste0(ss_name,
+                      sprintf("%02d", 1:n_ss))
+  groups <- do.call(paste, expand.grid(exp_levels,
+                                       block.treat,
+                                       rep_levels,
+                                       ss_levels
+                                       ))
+  fake_data_all <- data.table(NULL)
+  fake_data_all[, c("exp", "block", "treatment", "rep", "ss") :=
+                  tstrsplit(groups, " ", fixed = TRUE)]
+  setorder(fake_data_all, exp, block, treatment, rep, ss)
+  
+  if(unique_id == TRUE){
+    fake_data_all[, exp_id := paste(
+      exp_name,
+      sprintf("%02d",
+              as.integer(factor(exp))),
+      sep = "_")]
+    fake_data_all[, block_id := paste(
+      block_name,
+      sprintf("%02d",
+              as.integer(factor(paste(exp, block)))),
+      sep = "_")]
+    fake_data_all[, rep_id := paste(
+      rep_name,
+      sprintf("%02d",
+              as.integer(factor(paste(block_id, treatment, rep)))),
+      sep = "_")]
+    fake_data_all[, ss_id := paste(
+      ss_name,
+      sprintf("%03d",
+              as.integer(factor(paste(rep_id, ss)))),
+      sep = "_")]
+  }
+
+  # make specific to experiment
+  if(exp_name != "exp"){
+    setnames(fake_data_all, "exp_id", exp_name)
+  }
+  if(block_name != "block"){
+    setnames(fake_data_all, "block_id", block_name)
+  }
+  if(rep_name != "rep"){
+    setnames(fake_data_all, "rep_id", rep_name)
+  }
+  if(ss_name != "ss"){
+    setnames(fake_data_all, "ss_id", ss_name)
+  }
+
+  # order factor levels
+  fake_data_all[, treatment := factor(treatment,
+                                      levels = treatment_levels)]
+  
+  # random component
+  # random variance matrix
+  # gamma[1] is std of random intercept u_0
+  # gamma[2] is std of random slope for first non-reference
+  #     treatment level
+  # gamma[3] is std of random slope for second non-reference
+  #     treatment level
+  # and so on
+  if(correlated_slopes == TRUE){
+    L <- diag(gamma)
+    Psi_R <- diag(length(gamma))
+    Psi_R[lower.tri(Psi_R, diag = FALSE)] <- rho
+    Psi_R <- t(Psi_R)
+    Psi_R[lower.tri(Psi_R, diag = FALSE)] <- rho
+    Psi <- L%*%Psi_R%*%L
+  }
+  
+  fd_mat <- matrix(as.numeric(NA), nrow = N, ncol = n_sim)
+  colnames(fd_mat) <- paste0("sim_", 1:n_sim)
+  # View(fake_data_all)
+  for(sim_i in 1:n_sim){
+    seed_i <- seed_i + 1
+    sim_seed <- seed_i
+    set.seed(sim_seed)
+    
+    # fixed component
+    X <- model.matrix(~ treatment,
+                      data = fake_data_all)
+    y_fixed <- (X %*% beta)[,1]
+    
+    # random coefficients
+    # matrix of correlated coefficients with
+    # n_block (number of block) rows, and
+    # n_rand (number of random effects) columns
+    
+    if(design == "rcbd"){# replicates within blocks are experimental reps
+      if(correlated_slopes == TRUE){
+        # random intercepts and slopes
+        # assumes correlation between slopes and intercepts
+        # Z <- model.matrix(~ 0 + block + block:treatment, data = fake_data_all)
+        # this generates combination columns for non-reference treatment levels
+        Z1 <- model.matrix(~ 0 + block +
+                             block:treatment,
+                           data = fake_data_all)
+        # random effects (coefficients)
+        # cols are gamma0, gamma1, ...
+        # rows are block
+        u_mat <- rmvnorm(n_block,
+                         sigma = Psi)
+        # flattened to a vector, order is
+        # g0 for id1..k, then
+        # g1 for id1..k, then...
+        u1 <- c(u_mat)
+      }else{ #if random intercept interaction model
+        if(n_exp > 1){ # nested
+          Z1a <- model.matrix(~ 0 + exp, data = fake_data_all)
+          Z1b <- model.matrix(~ 0 + exp:treatment, data = fake_data_all)
+          Z1c <- model.matrix(~ 0 + exp:block, data = fake_data_all)
+          Z1d <- model.matrix(~ 0 + exp:block:treatment,
+                              data = fake_data_all)
+          Z1 <- cbind(Z1a, Z1b, Z1c, Z1d)
+          u1 <- c(rnorm(n_exp, mean = 0, sd = sigma_exp),
+                  rnorm(n_exp*n_treat, mean = 0, sd = sigma_exp.treat),
+                  rnorm(n_exp*n_block, mean = 0, sd = sigma_exp.block),
+                  rnorm(n_exp*n_block*n_treat, mean = 0,
+                        sd = sigma_exp.block.treat))
+        }
+        if(n_exp == 1){
+          # random block:treatment intercept
+          # block:treatment intercept intercept functions as slope
+          # and is independent of block intercept
+          # this generates combination columns for *all* treatment levels
+          # differs from random intercept and slope which only generates
+          # slope coefs for non ref levels
+          Z1a <- model.matrix(~ 0 + block, data = fake_data_all)
+          Z1b <- model.matrix(~ 0 + block:treatment, data = fake_data_all)
+          Z1 <- cbind(Z1a, Z1b)
+          u1 <- c(rnorm(n_block, mean = 0,
+                        sd = sigma_exp.block),
+                  rnorm(n_block*n_treat, mean = 0,
+                        sd = rep(sigma_exp.block.treat, each = n_block)))          
+        }
+      }
+    }
+    if(design == "pseudoreplicated"){# replicates within block:treatment are technical reps
+      # random nested intercept
+      fake_data_all[, batch := paste0("batch_", as.integer(as.factor(paste(exp, block, treatment, rep))))]
+#      Z1 <- model.matrix(~ 0 + rep_id, data = fake_data_all)
+      Z1 <- model.matrix(~ 0 + batch, data = fake_data_all)
+      u1 <- rnorm(N_reps, mean = 0, sd = sigma_rep)
+    }
+    
+    # random intercepts for replicated block:treatment
+    # if there is no subsampling within replicate, then these columns are not 
+    # in the specified model (because only one measure of each
+    # block:treatment:experiment combo) - that is, these columns
+    # collapse and add to the residual = subsampled error
+    # ijk - ith treatment, jth block, kth replicate
+    if(design == "rcbd"){
+      # if n_exp == 1 then cannot add exp to combination
+      # if n_rep == 1 then cannot add rep to combination
+      if(n_rep == 1 & n_exp == 1){
+        Z2 <- model.matrix(~ 0 + block:treatment,
+                           data = fake_data_all)
+        colnames(Z2) <- paste0(colnames(Z2), ":rep_1")
+      }
+      if(n_rep == 1 & n_exp > 1){
+        Z2 <- model.matrix(~ 0 + exp:block:treatment,
+                           data = fake_data_all)
+        colnames(Z2) <- paste0(colnames(Z2), ":rep_1")
+      }
+      if(n_rep > 1 & n_exp == 1){
+          Z2 <- model.matrix(~ 0 + block:treatment:rep,
+                             data = fake_data_all)
+        }
+      if(n_rep > 1 & n_exp > 1){
+          Z2 <- model.matrix(~ 0 + exp:block:treatment:rep,
+                             data = fake_data_all)
+        }
+    }else{
+      Z2 <- NULL
+    }
+
+    # add random block:treatment:rep intercepts
+    if(design == "rcbd"){
+      u2 <- rnorm(N_reps, mean = 0, sd = sigma_rep)
+    }else{
+      u2 <- NULL
+    }
+    
+    # random intercepts for subsampling within replicates = n_rep * n_treat * n_block
+    # ijkm ith treatment, jth block, kth replicate, mth subsample
+    # this is just the residual error so don't need coefficients
+
+    u <- c(u1, u2)
+    
+    # put it all together
+    Z <- cbind(Z1, Z2)
+    e_ss <- rnorm(N, mean = 0, sd = sigma_ss[1])
+    y_rand <- (Z %*% u)[,1] + e_ss
+    
+    # check!
+    # colnames(Z) <- 1:ncol(Z)
+    # head(cbind(fake_data_all[,1:3], Z))
+    # u_mat
+    # u
+    
+    # double check!
+    # fake_y <- rnorm(nrow(fake_data_all))
+    # lForm <- lFormula(fake_y ~ treatment + (treatment | block),
+    #                   fake_data_all)    # lme4's function to process a model formula
+    # Z1 <- t(as.matrix(lForm$reTrms$Zt))
+    # u1 <- t(c(t(u_mat)))[1,]
+    # y_rand2 <- (Z1 %*% u1)[,1]
+    
+    fd_mat[, sim_i] <- y_fixed + y_rand
+  }
+  fake_data_all <- cbind(fake_data_all,
+                         fd_mat)
+  return(fake_data_all)
+}
+
+
+## ----pairwise_paired_tt------------------------------------------------------------------------------------------------
 pairwise_paired_tt <- function(
     y_col, # response column
     g_col, # grouping column
@@ -91,10 +394,12 @@ pairwise_paired_tt <- function(
 
 
 
-## ----pptt------------------------------------------------------------------------------------------------------
+## ----pptt--------------------------------------------------------------------------------------------------------------
 pptt <- function(
     model_formula,
     data){
+  
+  # a formula versions of pairwise_paired_tt
   
   variables <- find_variables(model_formula)
   y_col <- variables$response
@@ -147,7 +452,7 @@ pptt <- function(
 
 
 
-## ----gg_pptt---------------------------------------------------------------------------------------------------
+## ----gg_pptt-----------------------------------------------------------------------------------------------------------
 gg_pptt <- function(
     aov_formula,
     data){
@@ -219,7 +524,7 @@ gg_pptt <- function(
 
 
 
-## ----twoway-fmt_p_value_2, echo=FALSE, warning=FALSE, message=FALSE--------------------------------------------
+## ----twoway-fmt_p_value_2, echo=FALSE, warning=FALSE, message=FALSE----------------------------------------------------
 fmt_p_value_2 <- function(p, digits = 0.0001){
   p_char <- ifelse(p < 0.06 | is.na(p),
                    scales::pvalue(p,
@@ -234,22 +539,22 @@ fmt_p_value_rmd <- function(x, digits = 0.0001){
 }
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 fmt_table <- function(df, digits = 0.0001){
   
 }
 
 
-## ----odd-even--------------------------------------------------------------------------------------------------
+## ----odd-even----------------------------------------------------------------------------------------------------------
 odd <- function(x) x%%2 != 0
 even <- function(x) x%%2 == 0
 
 
-## ----not_in----------------------------------------------------------------------------------------------------
+## ----not_in------------------------------------------------------------------------------------------------------------
 '%not_in%' <- Negate('%in%')
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 factor_wrap <- function(gg, sep = " "){
   x_labels <- layer_scales(gg)$x$get_limits()
   label_x <- str_replace(x_labels, sep, "\n")
@@ -260,7 +565,7 @@ factor_wrap <- function(gg, sep = " "){
 
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 factor_wrap_1 <- function(gg, sep = " "){
   x_labels <- layer_scales(gg)$x$get_limits()
   label_x <- str_replace(x_labels, sep, "\n")
@@ -269,7 +574,7 @@ factor_wrap_1 <- function(gg, sep = " "){
 
 
 
-## ----remove-parentheses----------------------------------------------------------------------------------------
+## ----remove-parentheses------------------------------------------------------------------------------------------------
 remove_parentheses <- function(x){
   if(substr(x, 1, 1) == "("){
     x <- substr(x, 2, nchar(x))
@@ -281,7 +586,7 @@ remove_parentheses <- function(x){
 }
 
 
-## ----ggcheck_the_qq, warning = FALSE---------------------------------------------------------------------------
+## ----ggcheck_the_qq, warning = FALSE-----------------------------------------------------------------------------------
 ggcheck_the_qq = function(m1,
                    line = "robust",
                    n_boot = 200){
@@ -388,7 +693,7 @@ ggcheck_the_qq = function(m1,
 }
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 
 ggcheck_the_glm_qq = function(m1,
                    n_sim = 250,
@@ -464,7 +769,7 @@ ggcheck_the_glm_qq = function(m1,
 
 
 
-## ----ggcheck_the_spreadlevel-----------------------------------------------------------------------------------
+## ----ggcheck_the_spreadlevel-------------------------------------------------------------------------------------------
 ggcheck_the_spreadlevel <- function(m1,
                    n_boot = 200){
   n <- nobs(m1)
@@ -519,7 +824,7 @@ ggcheck_the_spreadlevel <- function(m1,
 }
 
 
-## ----ggcheck_the_model-----------------------------------------------------------------------------------------
+## ----ggcheck_the_model-------------------------------------------------------------------------------------------------
 ggcheck_the_model <- function(m1){
   gg1 <- ggcheck_the_qq(m1)
   gg2 <- ggcheck_the_spreadlevel(m1)
@@ -527,7 +832,7 @@ ggcheck_the_model <- function(m1){
 }
 
 
-## ----emm_table-------------------------------------------------------------------------------------------------
+## ----emm_table---------------------------------------------------------------------------------------------------------
 emm_table <- function(fit_emm){
   table_out <- data.table(summary(fit_emm))
   if("response" %in% colnames(table_out)){
@@ -546,7 +851,7 @@ emm_table <- function(fit_emm){
 }
 
 
-## ----effects_table---------------------------------------------------------------------------------------------
+## ----effects_table-----------------------------------------------------------------------------------------------------
 effects_table <- function(fit_pairs,
                           digits = 2,
                           accuracy = 1e-04,
@@ -595,7 +900,7 @@ effects_table <- function(fit_pairs,
 
 
 
-## ----pvalue_table----------------------------------------------------------------------------------------------
+## ----pvalue_table------------------------------------------------------------------------------------------------------
 pvalue_table <- function(fit_pairs,
                          replace_space = FALSE # if two factors, this should be a "," between the two groups in treatment combo
                          ){
@@ -710,7 +1015,7 @@ pvalue_table <- function(fit_pairs,
 
 
 
-## ----response-plot---------------------------------------------------------------------------------------------
+## ----response-plot-----------------------------------------------------------------------------------------------------
 response_plot <- function(
   fit, # model fit from lm, lmer, nlme, glmmTMB
   fit_emm, # data frame with means, error
@@ -720,6 +1025,7 @@ response_plot <- function(
   g_label = NULL,
   dots = "sina",
   dodge_width = 0.8,
+  jitter_width = 0.4,
   adjust = 0.5,
   palette = pal_okabe_ito,
   legend_position = "top",
@@ -792,11 +1098,15 @@ response_plot <- function(
   if(dots == "sina"){
     gg <- gg + geom_sina(alpha = 0.5,
                          position = pd,
-                         adjust = adjust)
+                         adjust = adjust,
+                         scale = "width",
+                         maxwidth = jitter_width)
   }
   if(dots == "jitter"){
     gg <- gg + geom_point(alpha = 0.5,
-                          position = position_jitter(seed = 1))
+                          position = position_jitterdodge(seed = 1,
+                                                          jitter.width = jitter_width,
+                                                          dodge.width = dodge_width))
   }
   if(dots == "dotplot"){
     gg <- gg + geom_dotplot(binaxis='y',
@@ -880,7 +1190,7 @@ response_plot <- function(
 }
 
 
-## ----plot_pvalues----------------------------------------------------------------------------------------------
+## ----plot_pvalues------------------------------------------------------------------------------------------------------
 plot_pvalues <- function(
       gg,
       fit_emm,
@@ -982,7 +1292,7 @@ plot_pvalues <- function(
 }
 
 
-## ----ggplot_the_response---------------------------------------------------------------------------------------
+## ----ggplot_the_response-----------------------------------------------------------------------------------------------
 ggplot_the_response <- function(
     fit, # model fit from lm, lmer, nlme, glmmTMB
     fit_emm,
@@ -994,6 +1304,7 @@ ggplot_the_response <- function(
     g_label = NULL,
     dots = "sina",
     dodge_width = 0.8,
+    jitter_width = 0.4,
     adjust = 0.5,
     contrast_rows = "all",
     y_pos = NULL,
@@ -1013,6 +1324,7 @@ ggplot_the_response <- function(
     g_label = g_label,
     dots = dots,
     dodge_width = dodge_width,
+    jitter_width = jitter_width,
     adjust = adjust,
     palette = palette,
     legend_position = legend_position,
@@ -1037,7 +1349,7 @@ ggplot_the_response <- function(
 }
 
 
-## ----old_ggplot_the_response-----------------------------------------------------------------------------------
+## ----old_ggplot_the_response-------------------------------------------------------------------------------------------
 old_ggplot_the_response <- function(
   fit, # model fit from lm, lmer, nlme, glmmTMB
   fit_emm,
@@ -1261,7 +1573,7 @@ old_ggplot_the_response <- function(
 
 
 
-## ----ggplot_the_effects----------------------------------------------------------------------------------------
+## ----ggplot_the_effects------------------------------------------------------------------------------------------------
 ggplot_the_effects <- function(fit,
                        fit_pairs,
                        contrast_rows = "all",
@@ -1361,7 +1673,7 @@ ggplot_the_effects <- function(fit,
 }
 
 
-## ----ggplot_the_model------------------------------------------------------------------------------------------
+## ----ggplot_the_model--------------------------------------------------------------------------------------------------
 ggplot_the_model <- function(fit,
                            fit_emm,
                            fit_pairs,
@@ -1417,7 +1729,7 @@ ggplot_the_model <- function(fit,
 }
 
 
-## ----plot_treatments-------------------------------------------------------------------------------------------
+## ----plot_treatments---------------------------------------------------------------------------------------------------
 plot_treatments <- function(gg,
                             x_levels,
                             text_size = 5){
@@ -1468,7 +1780,7 @@ plot_treatments <- function(gg,
 
 
 
-## ----ggplot_the_treatments-------------------------------------------------------------------------------------
+## ----ggplot_the_treatments---------------------------------------------------------------------------------------------
 ggplot_the_treatments <- function(
   gg,
   x_levels,
@@ -1497,7 +1809,7 @@ ggplot_the_treatments <- function(
 }
 
 
-## ----vertical-brackets-functions, echo=FALSE-------------------------------------------------------------------
+## ----vertical-brackets-functions, echo=FALSE---------------------------------------------------------------------------
 bracketsGrob <- function(...){
 l <- list(...)
 e <- new.env()
@@ -1657,7 +1969,7 @@ geom_vbracket_1 <- function(gg,
 
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 testy <- function(fit_emm){
   exp1c_m1_emm_dt <- fit_emm %>%
     summary()
@@ -1681,7 +1993,7 @@ testy <- function(fit_emm){
 }
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 StatLm <- ggproto("StatLm", Stat, 
   required_aes = c("x", "y"),
   
@@ -1741,7 +2053,7 @@ stat_ancova <- function(mapping = NULL,
 
 
 
-## ----geom_ancova-----------------------------------------------------------------------------------------------
+## ----geom_ancova-------------------------------------------------------------------------------------------------------
 
 geom_ancova <- function(m1){
   geom_smooth(method = "lm",
@@ -1751,7 +2063,7 @@ geom_ancova <- function(m1){
 
 
 
-## ----kable_bind------------------------------------------------------------------------------------------------
+## ----kable_bind--------------------------------------------------------------------------------------------------------
 kable_bind <- function(tables, styling = TRUE, ...){
   p <- length(tables)
   table_out <- NULL
@@ -1779,7 +2091,7 @@ kable_bind <- function(tables, styling = TRUE, ...){
   
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 fill_down <- function(x){
   treatment_levels <- na.omit(unique(x))
   xf <- factor(x, levels = treatment_levels)
@@ -1790,14 +2102,14 @@ fill_down <- function(x){
 }
 
 
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 na_only_omit <- function(x){
   x <- x[rowSums(is.na(x)) != ncol(x), ]
   return(x)
 }
 
 
-## ----output-as-R-file------------------------------------------------------------------------------------------
+## ----output-as-R-file--------------------------------------------------------------------------------------------------
 # highlight and run to put update into R folder
 # knitr::purl("ggplot_the_model.Rmd")
 
