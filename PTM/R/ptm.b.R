@@ -187,6 +187,35 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           }
           the_design <- "crds"
         }
+        if(include_nest == FALSE & include_block == TRUE){
+          mb_notes_str <- paste("This is a Randomized Complete Block Design with a",
+                                y_type,
+                                "response.")
+          # mb_notes_str <- paste(mb_notes_str,
+          #                                     "\n 1. Choose CRDS in the Experimental Design picker.")
+          if (mb_hints_all == TRUE | model_class == "fixed"){
+            add_str <- "\n -- Model this with lmer, aov_4, or glmer in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(model_class == "fixed"){
+              working_model <- FALSE
+            }
+          }
+          if(mb_hints_all == TRUE | (family_class == "general" & model_family != "norm")){
+            add_str <- "\n -- lmer / aov_4 require Model Family: Normal in the Model picker."
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "general" & model_family != "norm"){
+              working_model <- FALSE}
+          }
+          if(mb_hints_all == TRUE | (family_class == "generalized" & model_family != y_family)){
+            add_str <- paste("\n -- glmer should use Model Family:",
+                             y_family_long,
+                             "in the Model picker.")
+            mb_notes_str <- paste(mb_notes_str, add_str)
+            if(family_class == "generalized" & model_family != y_family){
+              working_model <- FALSE}
+          }
+          the_design <- "rcbd"
+        }
       }
        
       if(working_model == TRUE){
@@ -663,6 +692,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         }else{
           m1_check <- NULL
         }
+        if(model_class == "anova"){m1_check <- NULL}
         do_model_check <- TRUE
         if(do_model_check == TRUE){
           image_check <- self$results$check
