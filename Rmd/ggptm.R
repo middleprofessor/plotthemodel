@@ -148,15 +148,11 @@ create_plot_data <- function(m1){
 
 
 ## ----------------------------------------------------------------------------------
-create_emm_data <- function(m1, m1_emm){
-  gg_data <- get_data(m1) |>
-    data.table()
-  response_label <- find_response(m1)
-  predictors <- find_predictors(m1)
-  predictors_fixed <- predictors$conditional
-  factor1_label <- predictors_fixed[1]
-  factor2_label <- predictors_fixed[2]
-  two_factors <- ifelse(is.na(factor2_label), FALSE, TRUE)
+create_emm_data <- function(m1_emm, ptm){
+  response_label <- ptm$response_label
+  factor1_label <- ptm$factor1_label
+  factor2_label <- ptm$factor2_label
+  two_factors <- ptm$two_factors
   
   if(is.data.frame(m1_emm) == TRUE){
     gg_emm <- data.table(m1_emm)
@@ -173,12 +169,19 @@ create_emm_data <- function(m1, m1_emm){
   gg_emm[, plot_factor_id := as.integer(plot_factor) |>
            as.character()]
   # create generic columns for mean and CIs
-  if("emmean" %in% names(gg_emm)){
+  if("emmean" %in% names(gg_emm)){ # linear models
     gg_emm[, mean := emmean]
+  }
+  if("response" %in% names(gg_emm)){ # generalized linear models
+    gg_emm[, mean := response]
   }
   if("lower.CL" %in% names(gg_emm)){
     gg_emm[, lo := lower.CL]
     gg_emm[, hi := upper.CL]
+  }
+  if("asymp.LCL" %in% names(gg_emm)){
+    gg_emm[, lo := asymp.LCL]
+    gg_emm[, hi := asymp.UCL]
   }
   
   return(gg_emm)
@@ -198,9 +201,19 @@ create_pairs_data <- function(m1_pairs, ptm){
   simple <- ptm$simple
   plot_factor_levels <- ptm$plot_factor_levels
   
+  # is the contrast a difference or ratio?
+  contrast_is <- "difference"
+  if("ratio" %in% names(gg_pairs)){
+    contrast_is <- "ratio"
+  }
+  
   # create group1 and group2 columns (the two groups of contrast)
-  groups <- unlist(str_split(gg_pairs$contrast, " - "))
-  # remove parentheses if they exist from group cols
+  if(contrast_is == "difference"){
+    groups <- unlist(str_split(gg_pairs$contrast, " - "))
+  }
+  if(contrast_is == "ratio"){
+    groups <- unlist(str_split(gg_pairs$contrast, " / "))
+  }
   groups <- lapply(groups, remove_parentheses) |>
     unlist()
   i_seq <- 1:length(groups)
@@ -327,7 +340,7 @@ plot_response <- function(m1,
   if(is.na(y_label)){y_label <- ptm$response_label}
   
   gg_data <- create_plot_data(m1)
-  gg_emm <- create_emm_data(m1, m1_emm)
+  gg_emm <- create_emm_data(m1_emm, ptm)
   ptm$plot_factor_levels <- gg_emm[, plot_factor] |> as.character()
   gg_pairs <- create_pairs_data(m1_pairs, ptm)
   if(!is.na(nest_id)){
