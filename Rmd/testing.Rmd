@@ -87,190 +87,66 @@ m1_all
 m1_simple
 ```
 
-```{r plotdata_full}
+# CRD - 2 x 2 (Twoway ANOVA)
 
-m1 <- lm(ucp1 ~ surgery * tx, data = fig3)
-m1_emm <- emmeans(m1, specs = c("surgery", "tx"))
-m1_all <- contrast(m1_emm,
+```{r fake-2x2-crd}
+seed <- 1
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 4, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 6, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 1, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(2400, -800, -700, -1200),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = 400, # among mouse variance
+  sigma_ss = 0, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+setnames(fake_data, c("treatment", "sim_1"), c("fake_treatment", "csa")) # cross-sectional area
+fake_data[fake_treatment == "Cn", treatment := "Intact\nLONP1"]
+fake_data[fake_treatment == "Tr1", treatment := "Denerv\nLONP1"]
+fake_data[fake_treatment == "Tr2", treatment := "Intact\nmKO"]
+fake_data[fake_treatment == "Tr3", treatment := "Denerv\nmKO"]
+fake_data[, c("surgery", "genotype") := tstrsplit(treatment, "\n")]
+fake_data[, treatment := factor(treatment, levels = c("Intact\nLONP1", "Denerv\nLONP1", "Intact\nmKO", "Denerv\nmKO"))]
+m1 <- lm(csa ~ treatment, data = fake_data)
+m1_emm <- emmeans(m1, specs = "treatment")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise")
+ggplot_the_response(m1, m1_emm, m1_pairs, dots = "sina", jitter_width = 0.5)
+ggplot_the_response(m1, m1_emm, m1_pairs, dots = "jitter", jitter_width = 0.2)
+
+fake_data[, surgery := factor(surgery, levels = c("Intact", "Denerv"))]
+fake_data[, genotype := factor(genotype, levels = c("LONP1", "mKO"))]
+m1 <- lm(csa ~ surgery * genotype, data = fake_data)
+m1_emm <- emmeans(m1, specs = c("surgery", "genotype"))
+m1_pairs <- contrast(m1_emm,
                      method = "revpairwise",
                      adjust = "none") |>
-    summary(infer = TRUE)
-m1_simple <- contrast(m1_emm,
+  summary(infer = TRUE)
+m1_pairs <- contrast(m1_emm,
                      method = "revpairwise",
-                     adjust = "none",
                      simple = "each",
-                     combine = TRUE) |>
-    summary(infer = TRUE)
-m1_pairs <- m1_all
-two_factors <- TRUE
-fig3[, surgery := factor(surgery, levels = c("YFP", "Cre"))]
-fig3[, tx := factor(tx, levels = c("SAL", "OHDA"))]
-
-           plotData_full <- data.table(
-                dataset = "experimental_reps", # change this to technical_reps if nested
-                y = fig3$ucp1,
-                factor_1 = fig3$surgery
-            )
-            if(two_factors == FALSE){
-                plotData_full[, factor_2 := factor_1]
-                plotData_full[, plot_factor := factor_1]
-            }else{
-                plotData_full[, factor_2 := fig3$tx]
-                plotData_full[, plot_factor := paste(factor_1, factor_2,
-                                                     sep = "\n")]
-                # reorder factor levels for 2-factor plots
-                levels_1 <- levels(plotData_full$factor_1) |>
-                    as.character()
-                levels_2 <- levels(plotData_full$factor_2) |>
-                    as.character()
-                levels_table <- expand.grid(levels_1, levels_2, stringsAsFactors = FALSE) |>
-                    data.table()
-                levels_table[, plot_levels := paste(Var1, Var2, sep = "\n")]
-                plotData_full[, plot_factor := factor(plot_factor,
-                                                 levels = levels_table[, plot_levels])]
-            }
-            # if(is.na(self$options$cluster)){
-            #     plotData_full[, cluster_id := NA]
-            # }else{
-            #     plotData_full[, cluster_id := self$data[[self$options$cluster]]]
-            # }
-            plotData_full[, mean := as.numeric(NA)]
-            plotData_full[, SE := as.numeric(NA)]
-            plotData_full[, lo := as.numeric(NA)]
-            plotData_full[, hi := as.numeric(NA)]
-
-            # fit plot
-            m1_plot <- lm(y ~ plot_factor, plotData_full)
-            emm_plot <- emmeans(m1_plot, specs = "plot_factor")
-            if(two_factors == FALSE){
-                pairs_plot <- m1_pairs |>
-                    data.table()
-            }else{
-                pairs_plot <- contrast(emm_plot,
-                                       method = "revpairwise",
-                                       adjust = "none") |>
-                    summary(infer = TRUE) |>
-                    data.table()
-
-                if(plot_simple == TRUE){
-                    # keep simple effects only
-                    levels_1 <- levels(plotData_full$factor_1) |>
-                        as.character()
-                    levels_2 <- levels(plotData_full$factor_2) |>
-                        as.character()
-                    p1 <- length(levels_1)
-                    p2 <- length(levels_2)
-                    pp <- p1*p2
-                    rows_list <- numeric(pp)
-                    j <- 0
-                    for(i in 1:(pp/2)){
-                        j <- j + 1
-                        a <- i
-                        b <- (pp * (pp - 1))/2 - i + 1
-                        rows_list[j] <- a
-                        j <- j + 1
-                        rows_list[j] <- b
-                    }
-                    pairs_plot <- pairs_plot[rows_list,]
-                }
-                new_contrast_col <- pairs_plot[, contrast]
-                pairs_plot <- m1_pairs |>
-                    data.table()
-                pairs_plot[, contrast := new_contrast_col]
-            }
-            setnames(pairs_plot, old = "SE", new = "SED")
-
-            # fill out summary table for means and error bars
-            y_cols <- c("y", "factor_1", "factor_2", "plot_factor", "mean", "SE", "lo", "hi")
-            plotData_summary <- data.table(
-                y = as.numeric(NA),
-                factor_1 = NA,
-                factor_2 = NA,
- #               cluster_id = NA,
-                summary(emm_plot)
-            )
-            setnames(plotData_summary,
-                     old = c("emmean", "lower.CL", "upper.CL"),
-                     new = c("mean", "lo", "hi"))
-            plotData_summary <- plotData_summary[, .SD, .SDcols = y_cols]
-
-            # combine summary and full data because ggplot in jmv can
-            # only take a single dataset
-            plotData <- rbind(plotData_summary, plotData_full)
+                     combine = TRUE,
+                     adjust = "none") |>
+  summary(infer = TRUE)
 
 
 ```
 
-```{r}
-            m1 <- lm(ucp1 ~ surgery * tx, fig3)
-            m1_emm <- emmeans(m1, specs = c("surgery", "tx"))
-            m1_pairs <- contrast(m1_emm,
-                                 method = "revpairwise",
-                                 adjust = "none") |>
-                summary(infer = TRUE)
 
-            m2 <- lmer(ucp1 ~ surgery * tx + (1 | ear_tag), fig3)
-            m2_emm <- emmeans(m2, specs = c("surgery", "tx"))
-            m2_pairs <- contrast(m2_emm,
-                                 method = "revpairwise",
-                                 adjust = "none") |>
-                summary(infer = TRUE)
-           
-m1_pairs
-m2_pairs
-```
+# CRDS - 2 x 1 (Nested)
 
-# Test CRDS
+Here the response is myotube diameter. 80 myotubes per mouse were measured. See fig5h
 
-```{r}
-filename <- "crds.xlsx"
-file_path <- here(data_folder, filename)
-fd <- read_excel(file_path) |>
-    data.table()
-fd[, genotype := factor(genotype, levels = c("Control", "mKO"))]
-
-m1 <- lmer(diameter ~ genotype + (1 | mouse), data = fd)
-fd_means <- fd[, .(diameter = mean(diameter)), by = .(mouse, genotype)]
-fd_means[, b1 := ifelse(genotype == "Control", 0, coef(summary(m1))[2,1])]
-m1_intercept <- data.table(
-    mouse = row.names(coef(m1)$mouse),
-    intercept = coef(m1)$mouse[, 1]
-)
-fd_means <- merge(fd_means, m1_intercept, by = "mouse")
-fd_means[, mean := intercept + b1]    
-fd_means[, diff := mean - diameter]
-ggplot(data = fd_means,
-       aes(x = diameter,
-           y = diff)) +
-    geom_point()
-
-fd_means <- fd[, .(diameter = mean(diameter)), by = .(mouse, genotype)]
-temp <- predict(m1, fd_means)
-fd_means[, yhat := predict(m1, fd_means)]
-
-m1_random_coef <- coef(m1)[[1]]
-cluster_means <- data.table(
-    dataset = "cluster_means",
-    y = m1_random_coef[, 1] + coef(summary)
-)
-
-
-plotData_full <- data.table(
-    dataset = "experimental_reps", # change this to technical_reps if nested
-    y = fd$diameter,
-    factor_1 = fd$genotype
-)
-plotData_full[, factor_2 := factor_1]
-plotData_full[, plot_factor := factor_1]
-plotData_full[, block_id := NA]
-plotData_full[, nest_id := fd$mouse]
-plotData_full[, mean := as.numeric(NA)]
-plotData_full[, SE := as.numeric(NA)]
-plotData_full[, lo := as.numeric(NA)]
-plotData_full[, hi := as.numeric(NA)]
-```
-
-```{r rcbds-2x1}
+```{r fake-crds}
 seed <- 1
 # sigma_e^2 = sigma_rep^2 + sigma_ss^2
 # icc = sigma_rep^2 / sigma_e^2
@@ -278,126 +154,17 @@ icc <- 0.6
 sigma_e <- 2
 sigma_rep <- sqrt(icc*sigma_e^2)
 sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
-
 fake_data <- simulator(
   seed_i = seed,
   n_sim = 1,
-  n_treat = 2, # number of treatment levels
-  n_block = 6, # number of litters (blocks)
-  n_rep = 1, # number of mice per litter:treatment
-  n_ss = 2, # number of subsamples
-  n_exp = 1, # number of experiments
-  design = "rcbd",
-  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
-  beta = c(21, -3),
-  sigma_exp.block = sigma_rep, # sd among exp:block (or block if n_exp = 1). This is among mouse
-  sigma_exp.block.treat = c(0), # sd among exp:block:treat
-  sigma_ss = sigma_ss, # sd among subsamples within replication of treatment:block
-  block_name = "mouse",
-  rep_name = "limb",
-  ss_name = "ss"
-)
-setnames(fake_data, "sim_1", "diameter") # myotube diameter
-fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
-fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
-
-m1 <- lmer(diameter ~ genotype + (genotype | mouse), data = fake_data)
-m1_emm <- emmeans(m1, specs = "genotype")
-m1_pairs <- contrast(m1_emm,
-                     method = "revpairwise") |>
-  summary(infer = TRUE)
-
-fake_data_copy <- copy(fake_data)
-fake_data_copy[, plot_factor := genotype]
-m1_plot <- lm(diameter ~ plot_factor, data = fake_data_copy)
-emm_plot <- emmeans(m2, specs = "plot_factor")
-pairs_plot <- contrast(m2_emm, method = "revpairwise") |>
-  summary(infer = TRUE)
-
-m2 <- lm(diameter ~ genotype + mouse + limb, data = fake_data)
-m2_emm <- emmeans(m2, specs = "genotype")
-m2_pairs <- contrast(m2_emm, method = "revpairwise")
-```
-
-```{r}
-plotData_full <- data.table(
-  dataset = "exp_reps", # change this to technical_reps if nested
-  y = fake_data$diameter,
-  factor_1 = fake_data$genotype
-)
-plotData_full[, factor_2 := factor_1]
-plotData_full[, plot_factor := factor_1]
-
-
-plotData_full[, block_id := fake_data$mouse]
-plotData_full[, nest_id := fake_data$limb]
-plotData_full[, mean := as.numeric(NA)]
-plotData_full[, SE := as.numeric(NA)]
-plotData_full[, lo := as.numeric(NA)]
-plotData_full[, hi := as.numeric(NA)]
-```
-
-# test spd
-
-```{r}
-# Test spd
-
-filename <- "spd2x2.xlsx"
-file_path <- here(data_folder, filename)
-fd <- read_excel(file_path) |>
-    data.table()
-fd[, genotype := factor(genotype, levels = c("Control", "mKO"))]
-fd[, surgery := factor(surgery, levels = c("Intact", "Denerv"))]
-
-
-
-plotData_full <- data.table(
-    dataset = "experimental_reps", # change this to technical_reps if nested
-    y = fd$csa,
-    factor_1 = fd$genotype,
-    factor_2 = fd$surgery
-)
-                plotData_full[, plot_factor := paste(factor_1, factor_2,
-                                                     sep = "\n")]
-                # reorder factor levels for 2-factor plots
-                levels_1 <- levels(plotData_full$factor_1) |>
-                    as.character()
-                levels_2 <- levels(plotData_full$factor_2) |>
-                    as.character()
-                levels_table <- expand.grid(levels_1, levels_2, stringsAsFactors = FALSE) |>
-                    data.table()
-                levels_table[, plot_levels := paste(Var1, Var2, sep = "\n")]
-                plotData_full[, plot_factor := factor(plot_factor,
-                                                 levels = levels_table[, plot_levels])]
-
-plotData_full[, block_id := fd$mouse]
-plotData_full[, nest_id := NA]
-plotData_full[, mean := as.numeric(NA)]
-plotData_full[, SE := as.numeric(NA)]
-plotData_full[, lo := as.numeric(NA)]
-plotData_full[, hi := as.numeric(NA)]
-```
-
-```{r}
-seed <- 1
-# sigma_e^2 = sigma_rep^2 + sigma_ss^2
-# icc = sigma_rep^2 / sigma_e^2
-icc <- 0.4
-sigma_e <- 10
-sigma_rep <- sqrt(icc*sigma_e^2)
-sigma_ss <- sqrt(sigma_e^2 - sigma_rep^2)
-fake_data <- simulator(
-  seed_i = seed,
-  n_sim = 1,
-  family = "gamma",
   n_treat = 2, # number of treatment levels
   n_block = 1, # number of litters (blocks)
-  n_rep = 10, # number of mice per litter:treatment
+  n_rep = 6, # number of mice per litter:treatment
   n_ss = 80, # number of subsamples
   n_exp = 1, # number of experiments
   design = "pseudoreplicated",
   correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
-  beta = c(20, -5),
+  beta = c(21, -3),
   sigma_exp.block = 0, # only sampling 1 litter
   sigma_rep = sigma_rep, # among mouse variance
   sigma_ss = sigma_ss, # among technical reps within mouse
@@ -408,51 +175,10 @@ fake_data <- simulator(
 setnames(fake_data, c("ss", "sim_1"), c("technical_rep", "diameter")) # cross-sectional area
 fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
 fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
-m1 <- lm(diameter ~ genotype, data = fake_data)
+m1 <- lmer(diameter ~ genotype + (1|mouse), data = fake_data)
 m1_emm <- emmeans(m1, specs = "genotype")
 m1_pairs <- contrast(m1_emm,
                      method = "revpairwise")
 ggplot_the_response(m1, m1_emm, m1_pairs)
 
-m2 <- glm(diameter ~ genotype,
-            family = Gamma(link = "log"),
-            data = fake_data)
-m2_emm <- emmeans(m2, specs = "genotype", type = "response")
-m2_pairs <- contrast(m2_emm,
-                     method = "revpairwise")
-          check_m2 <- simulateResiduals(fittedModel = m2,
-                                        n = 250,
-                                        refit = FALSE)
-          plot(check_m2)
-
-m3 <- glmer(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-m3_emm <- emmeans(m3, specs = "genotype", type = "response")
-m3_pairs <- contrast(m3_emm,
-                     method = "revpairwise")
-          check_m3 <- simulateResiduals(fittedModel = m3,
-                                        n = 250,
-                                        refit = FALSE)
-          plot(check_m3)
-
-
-m4 <- glmmTMB(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-m4_emm <- emmeans(m4, specs = "genotype", type = "response")
-m4_pairs <- contrast(m4_emm,
-                     method = "revpairwise")
-
-m5 <- lmer(diameter ~ genotype + (1 | mouse),
-            data = fake_data)
-fd_means <- fake_data[, .(diameter = mean(diameter)), by = .(genotype, mouse)]
-fd_means[, diameter_model_lmer := predict(m5, fd_means)]
-
-m3 <- glmer(diameter ~ genotype + (1 | mouse),
-            family = Gamma(link = "log"),
-            data = fake_data)
-fd_means[, diameter_model_glmer := predict(m3, fd_means, type = "response")]
-fd_means
 ```
-

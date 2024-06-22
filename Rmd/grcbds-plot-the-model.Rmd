@@ -167,7 +167,8 @@ fake_data[, treatment := factor(treatment, levels = c("Control", "Denerv", "mKO"
 m1 <- lm(csa ~ treatment, data = fake_data)
 m1_emm <- emmeans(m1, specs = "treatment")
 m1_pairs <- contrast(m1_emm,
-                     method = "revpairwise")
+                     method = "revpairwise") |>
+  summary(infer = TRUE)
 ggplot_the_response(m1, m1_emm, m1_pairs)
 
 outfile_name <- "crd3.xlsx"
