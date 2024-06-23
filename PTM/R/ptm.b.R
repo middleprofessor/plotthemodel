@@ -427,24 +427,26 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         # image$setState(plotData)
         model_list <- list(m1, m1_emm, m1_pairs)
         image$setState(model_list)
+      }else{
+        model_list <- NULL
       }
       
       # prepare m1_check model for check_the_model
       # use nest means if there are subsampled reps
       m1_check <- NULL
-      # if(working_model == TRUE){
-      #   if(check_the_model == TRUE){
-      #     m1_check <- copy(m1)
-      #   }else{
-      #     m1_check <- NULL
-      #   }
-      #   if(model_class == "anova"){m1_check <- NULL}
-      #   do_model_check <- TRUE
-      #   if(do_model_check == TRUE){
-      #     image_check <- self$results$check
-      #     image_check$setState(m1_check)
-      #   }
-      # }
+      if(working_model == TRUE){
+        if(check_the_model == TRUE){
+          m1_check <- copy(m1)
+        }else{
+          m1_check <- NULL
+        }
+        if(model_class == "anova"){m1_check <- NULL}
+        do_model_check <- TRUE
+        if(do_model_check == TRUE){
+          image_check <- self$results$check
+          image_check$setState(m1_check)
+        }
+      }
       
       ### DEBUG ONLY remove this when 
       m1_check <- NULL
@@ -452,111 +454,29 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
     },
     .plot=function(image, ...) {
       model_list <- image$state
-      m1 <- model_list[[1]]
-      m1_emm <- model_list[[2]]
-      m1_pairs <- model_list[[3]]
-      
-      # plot features
-      show_nest_data_val <- ifelse(self$options$tech_reps == TRUE, TRUE, FALSE)
-      nest_id_val <- ifelse(is.null(self$options$nest_id), NA, self$options$nest_id)
-      palette_val <- self$options$pal
-
-      # get the plot!
-      gg <- plot_response(m1,
-                          m1_emm,
-                          m1_pairs,
-                          show_nest_data = show_nest_data_val,
-                          nest_id = nest_id_val,
-                          palette = palette_val)
-      print(gg)
-      TRUE
-    },
-    .plot2=function(image, ...) {
-      pal_okabe_ito <- c(
-        "#E69F00",
-        "#56B4E9",
-        "#009E73",
-        "#F0E442",
-        "#0072B2",
-        "#D55E00",
-        "#CC79A7"
-      )
-      pal_okabe_ito_blue <- pal_okabe_ito[c(5,6,1,2,3,7,4)]
-      pal_npg <- pal_npg("nrc")(10)
-      pal_aaas <- pal_aaas("default")(10)
-      pal_jco <- pal_jco("default")(10)
-      pal_frontiers <- pal_frontiers("default")(7)
-      
-      plotData <- image$state
-      
-      if(!is.null(plotData)){
-        plotData <- data.table(plotData)
-        # plot options
-        # tech replicates
-        show_tech_reps <- ifelse(self$options$tech_reps == TRUE, TRUE, FALSE)
-        if(is.null(self$options$nest_id)){show_tech_reps <- FALSE}
-        # mods for joining blocks
-        include_block <- ifelse(is.null(self$options$block), FALSE, TRUE)
-        join_blocks <- ifelse(include_block == TRUE, self$options$join_blocks, FALSE)
-        # # if join, then don't jitter
-        jitter_spread <- ifelse(join_blocks == TRUE, 0, 0.2)
-        line_color <- ifelse(join_blocks == TRUE, "gray", "white")
-        # y-axis label
-        y_label <- ifelse(is.null(self$options$y_label), self$options$dep, self$options$y_label)
-        y_label <- ifelse(self$options$y_label == "", self$options$dep, self$options$y_label)
+      if(!is.null(model_list)){
+        m1 <- model_list[[1]]
+        m1_emm <- model_list[[2]]
+        m1_pairs <- model_list[[3]]
         
-        # plot it!
-        plot <- ggplot(plotData,
-                       aes(x = plot_factor_id,
-                           y = mean))
-        if(join_blocks == TRUE){
-          plot <- plot +
-            geom_line(aes(x = plot_factor_id,
-                          y = y,
-                          group = block_id),
-                      color = line_color
-            )
-        }
-        if(show_tech_reps == TRUE){
-          plot <- plot +
-            geom_sina(data = plotData[dataset == "tech_reps"],
-                      aes(x = plot_factor_id, y = y),
-                      scale = "width",
-                      maxwidth = jitter_spread,
-                      size = 1,
-                      color = "gray",
-                      show.legend = FALSE)
-        }
-        plot <- plot +
-          geom_jitter(data = plotData[dataset == "exp_reps"],
-                      aes(x = plot_factor_id, y = y, color = factor_1),
-                      width = jitter_spread,
-                      size = 2,
-                      show.legend = FALSE) +
-          geom_errorbar(aes(ymin = lo, ymax = hi, width=.1),
-                        show.legend = FALSE) +
-          geom_point(aes(x = plot_factor_id, y = mean),
-                     size = 4,
-                     show.legend = FALSE) +
-          ylab(y_label) +
-          scale_x_discrete(labels = levels(plotData$plot_factor)) +
-          theme_pubr() +
-          theme(axis.title.x = element_blank())
-        plot <- plot +
-          stat_pvalue_manual(plotData,
-                             label = "p.print",
-                             y.position = "y_pos",
-                             xmin = "minx",
-                             xmax = "maxx",
-                             size = 4,
-                             tip.length = 0.01)
-        if(self$options$pal != "pal_ggplot"){
-          plot <- plot +
-            scale_color_manual(values = get(self$options$pal))
-        }
-        print(plot)
-        TRUE
+        # plot features
+        join_blocks_val <- ifelse(self$options$join_blocks == TRUE, TRUE, FALSE)
+        show_nest_data_val <- ifelse(self$options$tech_reps == TRUE, TRUE, FALSE)
+        nest_id_val <- ifelse(is.null(self$options$nest_id), NA, self$options$nest_id)
+        palette_val <- self$options$pal
+        jitter_width_val <- ifelse(join_blocks_val == TRUE, 0, 0.2)
         
+        # get the plot!
+        gg <- plot_response(m1,
+                            m1_emm,
+                            m1_pairs,
+                            show_nest_data = show_nest_data_val,
+                            join_blocks = join_blocks_val,
+                            nest_id = nest_id_val,
+                            jitter_width = jitter_width_val,
+                            palette = palette_val)
+        print(gg)
+        TRUE       
       }
     },
     .plot_check=function(image_check, ...){

@@ -107,26 +107,20 @@ create_model_data <- function(
 
 ## ----------------------------------------------------------------------------------
 
-create_plot_data <- function(m1){
+create_plot_data <- function(m1, ptm){
   gg_data <- get_data(m1) |>
     data.table()
-  response_label <- find_response(m1)
-  predictors <- find_predictors(m1)
-  predictors_fixed <- predictors$conditional
-  factor1_label <- predictors_fixed[1]
-  factor2_label <- predictors_fixed[2]
-  two_factors <- ifelse(is.na(factor2_label), FALSE, TRUE)
-  
+
   # create generic columns
-  gg_data[, y := get(response_label)]
-  gg_data[, factor_1 := get(factor1_label) |>
+  gg_data[, y := get(ptm$response_label)]
+  gg_data[, factor_1 := get(ptm$factor1_label) |>
             factor()]
-  if(two_factors == TRUE){
-    gg_data[, factor_2 := get(factor2_label) |>
+  if(ptm$two_factors == TRUE){
+    gg_data[, factor_2 := get(ptm$factor2_label) |>
               factor()]
   }
   gg_data[, plot_factor := factor_1]
-  if(two_factors == TRUE){
+  if(ptm$two_factors == TRUE){
     gg_data[, plot_factor := paste(factor_1, factor_2, sep = "\n")]
     # reorder factor levels for 2-factor plots
     levels_1 <- levels(gg_data$factor_1) |>
@@ -139,7 +133,6 @@ create_plot_data <- function(m1){
     gg_data[, plot_factor := factor(plot_factor,
                                     levels = levels_table[, plot_levels])]
   }
-  
   gg_data[, plot_factor_id := as.integer(plot_factor) |>
             as.character()]
   return(gg_data)
@@ -149,11 +142,7 @@ create_plot_data <- function(m1){
 
 ## ----------------------------------------------------------------------------------
 create_emm_data <- function(m1_emm, ptm){
-  response_label <- ptm$response_label
-  factor1_label <- ptm$factor1_label
-  factor2_label <- ptm$factor2_label
-  two_factors <- ptm$two_factors
-  
+
   if(is.data.frame(m1_emm) == TRUE){
     gg_emm <- data.table(m1_emm)
   }else{
@@ -161,9 +150,10 @@ create_emm_data <- function(m1_emm, ptm){
       data.table()
   }
   # create plot_factor column - this will be horizontal axis
-  gg_emm[, plot_factor := get(factor1_label)]
-  if(two_factors == TRUE){
-    gg_emm[, plot_factor := paste(get(factor1_label), get(factor2_label), sep = "\n")]
+  gg_emm[, plot_factor := get(ptm$factor1_label)]
+  if(ptm$two_factors == TRUE){
+    gg_emm[, plot_factor := paste(get(ptm$factor1_label), get(ptm$factor2_label),
+                                  sep = "\n")]
     gg_emm[, plot_factor := factor(plot_factor, levels = plot_factor)]
   }
   gg_emm[, plot_factor_id := as.integer(plot_factor) |>
@@ -197,10 +187,6 @@ create_pairs_data <- function(m1_pairs, ptm){
       data.table()
   }
   
-  two_factors <- ptm$two_factors
-  simple <- ptm$simple
-  plot_factor_levels <- ptm$plot_factor_levels
-  
   # is the contrast a difference or ratio?
   contrast_is <- "difference"
   if("ratio" %in% names(gg_pairs)){
@@ -219,7 +205,7 @@ create_pairs_data <- function(m1_pairs, ptm){
   i_seq <- 1:length(groups)
   gg_pairs[, group1_label := groups[i_seq%%2 != 0]]
   gg_pairs[, group2_label := groups[i_seq%%2 == 0]]
-  if(simple == TRUE){
+  if(ptm$simple == TRUE){
     simple_group_1 <- names(gg_pairs)[1]
     simple_group_2 <- names(gg_pairs)[2]
     gg_pairs[get(simple_group_1) != ".", group1_label := paste(group1_label, get(simple_group_1))]
@@ -227,12 +213,12 @@ create_pairs_data <- function(m1_pairs, ptm){
     gg_pairs[get(simple_group_2) != ".", group1_label := paste(group1_label, get(simple_group_2))]
     gg_pairs[get(simple_group_2) != ".", group2_label := paste(group2_label, get(simple_group_2))]
   }
-  if(two_factors == TRUE){
+  if(ptm$two_factors == TRUE){
     gg_pairs[, group1_label := str_replace(group1_label, " ", "\n")]
     gg_pairs[, group2_label := str_replace(group2_label, " ", "\n")]
   }
-  gg_pairs[, group1 := match(group1_label, plot_factor_levels)]
-  gg_pairs[, group2 := match(group2_label, plot_factor_levels)]
+  gg_pairs[, group1 := match(group1_label, ptm$plot_factor_levels)]
+  gg_pairs[, group2 := match(group2_label, ptm$plot_factor_levels)]
   gg_pairs[, p.print := pretty_pvalues(p.value)]
   gg_pairs[, p.print := format_p(p.value, whitespace = FALSE)]
   
@@ -302,11 +288,18 @@ get_ptm_parameters <- function(m1, m1_pairs){
   if(is.na(ptm$random)){
     ptm$nested <- FALSE
     ptm$nest_id <- NA
+    ptm$blocked <- FALSE
+    ptm$block_id <- NA
   }else{
     counts <- gg_data[!is.na(get(ptm$response)), .(N = .N),
-                      by = c(ptm$factor1_label, ptm$factor1_label, ptm$random)]
-    ptm$nested <- ifelse(any(counts$N > 1), TRUE, FALSE)
-    ptm$nest_id <- ptm$random
+                      by = c(ptm$factor1_label, ptm$factor2_label, ptm$random)]
+    ptm$nested <- ifelse(any(counts$N > 1), TRUE, FALSE) # could be block block if...
+    if(ptm$nest == TRUE){
+      ptm$nest_id <- ptm$random
+    }else{
+      ptm$blocked <- TRUE
+      ptm$block_id <- ptm$random
+    }
   }
   
   # simple effects?
@@ -326,7 +319,9 @@ get_ptm_parameters <- function(m1, m1_pairs){
 plot_response <- function(m1,
                           m1_emm,
                           m1_pairs,
+                          join_blocks = FALSE,
                           show_nest_data = FALSE,
+                          block_id = NA, # this is the column containing the blocks
                           nest_id = NA, # this is the column containing the cluster
                           jitter_spread = 0.8,
                           jitter_width = 0.2,
@@ -339,7 +334,7 @@ plot_response <- function(m1,
   
   if(is.na(y_label)){y_label <- ptm$response_label}
   
-  gg_data <- create_plot_data(m1)
+  gg_data <- create_plot_data(m1, ptm)
   gg_emm <- create_emm_data(m1_emm, ptm)
   ptm$plot_factor_levels <- gg_emm[, plot_factor] |> as.character()
   gg_pairs <- create_pairs_data(m1_pairs, ptm)
@@ -354,18 +349,7 @@ plot_response <- function(m1,
                aes(x = plot_factor_id,
                    y = y))
   
-  # add data points. If nest, these are gray
-  if(ptm$nested == FALSE){
-    # experimental reps
-    gg <- gg +
-      geom_jitter(data = gg_data,
-                  aes(x = plot_factor_id,
-                      y = y,
-                      color = factor_1),
-                  width = jitter_width,
-                  size = 4,
-                  show.legend = FALSE)
-  }
+  # add nested data
   if(ptm$nested == TRUE){
     # nested reps
     if(show_nest_data == TRUE){
@@ -380,6 +364,29 @@ plot_response <- function(m1,
                   color = "gray",
                   show.legend = FALSE)
     }
+  }
+  
+  # join blocks
+  if(ptm$blocked == TRUE & join_blocks == TRUE){
+    gg <- gg +
+      geom_line(data = gg_data,
+                aes(x = plot_factor_id,
+                    y = y,
+                    group = get(ptm$block_id)),
+                color = "grey"
+      )
+  }
+  
+  if(ptm$nested == FALSE){
+    # experimental reps
+    gg <- gg +
+      geom_jitter(data = gg_data,
+                  aes(x = plot_factor_id,
+                      y = y,
+                      color = factor_1),
+                  width = jitter_width,
+                  size = 4,
+                  show.legend = FALSE)
   }
   
   # add nest means = experimental reps
