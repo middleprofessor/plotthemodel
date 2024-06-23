@@ -268,10 +268,23 @@ fake_data[, c("surgery", "genotype") := tstrsplit(treatment, " ")]
 m1 <- lmer(csa ~ surgery * genotype + (1 | litter), data = fake_data)
 m1_emm <- emmeans(m1, specs = c("surgery", "genotype"))
 m1_pairs <- contrast(m1_emm,
-                     method = "revpairwise") |>
+                     method = "revpairwise",
+                     simple = "each",
+                     combine = "TRUE") |>
   summary(infer = TRUE)
-ggplot_the_response(m1, m1_emm, m1_pairs)
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise",
+                     simple = "each") |>
+  summary(infer = TRUE)
+m1_pairs <- contrast(m1_emm,
+                     method = "pairwise",
+                     simple = "each",
+                     combine = "TRUE") |>
+  summary(infer = TRUE)
 
+ggplot_the_response(m1, m1_emm, m1_pairs)
+m1_emm
+m1_pairs
 
 ```
 

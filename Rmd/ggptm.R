@@ -178,7 +178,27 @@ create_emm_data <- function(m1_emm, ptm){
 }
 
 
-## ----------------------------------------------------------------------------------
+## ----combine-contrasts-------------------------------------------------------------
+combine_contrasts <- function(m1_pairs){
+  part_1 <- m1_pairs[[1]]
+  part_2 <- m1_pairs[[2]]
+  part_1_c <- cbind(
+    group1 = part_1[, 2],
+    group2 = ".",
+    part_1[, -2]
+  )
+  part_2_c <- cbind(
+    group1 = ".",
+    group2 = part_2[, 2],
+    part_2[, -2]
+  )
+  m1_pairs_c <- rbind(part_1_c, part_2_c)
+  colnames(m1_pairs_c)[1:2] <- c(names(part_1)[2], names(part_2)[2])
+  return(m1_pairs_c)
+}
+
+
+## ----create-pairs-data-------------------------------------------------------------
 create_pairs_data <- function(m1_pairs, ptm){
   if(is.data.frame(m1_pairs) == TRUE){
     gg_pairs <- data.table(m1_pairs)
@@ -205,13 +225,13 @@ create_pairs_data <- function(m1_pairs, ptm){
   i_seq <- 1:length(groups)
   gg_pairs[, group1_label := groups[i_seq%%2 != 0]]
   gg_pairs[, group2_label := groups[i_seq%%2 == 0]]
-  if(ptm$simple == TRUE){
+  if(ptm$simple == TRUE){ # works w both pairwise and revpairwise
     simple_group_1 <- names(gg_pairs)[1]
     simple_group_2 <- names(gg_pairs)[2]
     gg_pairs[get(simple_group_1) != ".", group1_label := paste(group1_label, get(simple_group_1))]
     gg_pairs[get(simple_group_1) != ".", group2_label := paste(group2_label, get(simple_group_1))]
-    gg_pairs[get(simple_group_2) != ".", group1_label := paste(group1_label, get(simple_group_2))]
-    gg_pairs[get(simple_group_2) != ".", group2_label := paste(group2_label, get(simple_group_2))]
+    gg_pairs[get(simple_group_2) != ".", group1_label := paste(get(simple_group_2), group1_label)]
+    gg_pairs[get(simple_group_2) != ".", group2_label := paste(get(simple_group_2), group2_label)]
   }
   if(ptm$two_factors == TRUE){
     gg_pairs[, group1_label := str_replace(group1_label, " ", "\n")]
@@ -311,6 +331,7 @@ get_ptm_parameters <- function(m1, m1_pairs){
   }
   ptm$simple <- ifelse(names(gg_pairs)[1] != "contrast", TRUE, FALSE)
   
+  
   return(ptm)
 }
 
@@ -328,6 +349,11 @@ plot_response <- function(m1,
                           palette = "pal_ggplot",
                           y_label = NA){
   
+  # correct m1_pairs if its a list
+  if(!is.null(names(m1_pairs[[1]]))){
+    m1_pairs <- combine_contrasts(m1_pairs)
+  }
+
   ptm <- get_ptm_parameters(m1, m1_pairs)
   ptm$show_nest <- show_nest_data
   if(!is.na(nest_id)){ptm$nest_id <- nest_id}
