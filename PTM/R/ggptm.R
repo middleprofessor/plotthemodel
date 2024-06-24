@@ -1,4 +1,4 @@
-## ----setup, include=FALSE----------------------------------------------------------
+## ----setup, include=FALSE--------------------------------------------------------------------------
 # wrangling
 library(data.table)
 library(stringr)
@@ -12,7 +12,7 @@ library(cowplot)
 
 
 
-## ----palettes----------------------------------------------------------------------
+## ----palettes--------------------------------------------------------------------------------------
 # get some palettes
 pal_okabe_ito <- c(
   "#E69F00",
@@ -30,7 +30,7 @@ pal_jco <- pal_jco("default")(10)
 pal_frontiers <- pal_frontiers("default")(7)
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 remove_parentheses <- function(x){
   if(substr(x, 1, 1) == "("){
     x <- substr(x, 2, nchar(x))
@@ -51,7 +51,253 @@ pretty_pvalues <- function(p){
 }
 
 
-## ----------------------------------------------------------------------------------
+## ----ggcheck_the_qq, warning = FALSE---------------------------------------------------------------
+ggcheck_the_qq = function(m1,
+                   line = "robust",
+                   n_boot = 200){
+  n <- nobs(m1)
+  m1_res <- residuals(m1)
+  #sigma_m1_res <- sigma(m1)
+
+  normal_qq <- ppoints(n) %>%
+    qnorm()
+  sample_qq <- m1_res[order(m1_res)]
+  
+  # mean + sd
+  parametric_slope <- sd(sample_qq)
+  parametric_intercept <- mean(sample_qq)
+  
+  # quartiles
+  m1_quartiles <- quantile(m1_res, c(.25, .75))
+  qnorm_quartiles <- qnorm( c(.25, .75))
+  m1_diff <- m1_quartiles[2] - m1_quartiles[1]
+  qnorm_diff <- qnorm_quartiles[2] - qnorm_quartiles[1] # = 1.349
+  quartile_slope <- m1_diff/qnorm_diff
+  quartile_intercept <- median(m1_quartiles) # median of quartiles not quantiles
+  
+  # robust uses MASS:rlm (default arguments?)
+  qq_observed <- data.table(normal_qq = normal_qq,
+                            sample_qq = sample_qq)
+  m2 <- rlm(sample_qq ~ normal_qq, data = qq_observed)
+  robust_intercept <- coef(m2)[1]
+  robust_slope <- coef(m2)[2]
+  
+  # re-sample ribbon
+  set.seed(1)
+  resample_qq_model <- numeric(n_boot*n)
+  Y <- simulate(m1, n_boot)
+  fd <- model.frame(m1) %>%
+    data.table
+  inc <- 1:n
+  for(sim_i in 1:n_boot){
+    # parametric bound
+    fd[, (1) := Y[,sim_i]]
+    m1_class <- class(m1)[1]
+    if(m1_class == "lm"){
+      ff <- lm(formula(m1), data = fd) 
+    }
+    if(m1_class == "lmerModLmerTest" | m1_class == "lmerMod"){
+      ff <- lmer(formula(m1), data = fd)
+    }
+    y_res <- residuals(ff)
+    resample_qq <- y_res[order(y_res)]
+    resample_qq_model[inc] <- resample_qq
+    inc <- inc + n
+    
+    # robust bound
+    qq_resampled <- data.table(normal_qq = normal_qq,
+                              resample_qq = resample_qq)
+    m2_resample <- rlm(resample_qq ~ normal_qq, data = qq_resampled)
+    
+  }
+
+  qq_sim <- data.table(normal_qq = normal_qq,
+                       resample_qq_model = resample_qq_model)
+  
+  qq_ci_model <- qq_sim[, .(median = median(resample_qq_model),
+                      lower = quantile(resample_qq_model, 0.025),
+                      upper = quantile(resample_qq_model, 0.975)),
+                  by = normal_qq]
+  m2_boot <- rlm(median ~ normal_qq, data = qq_ci_model)
+  robust_intercept_boot <- coef(m2_boot)[1]
+  robust_slope_boot <- coef(m2_boot)[2]
+ 
+  ggplot(data = qq_observed,
+         aes(x = normal_qq, y = sample_qq)) +
+    
+    # ribbon
+    geom_ribbon(data = qq_ci_model,
+                aes(ymin = lower,
+                    ymax = upper,
+                    y = median,
+                    fill = "band"),
+                fill = "gray",
+                alpha = 0.6) +
+    # draw points
+    geom_point() +
+    
+   # robust
+    geom_abline(aes(intercept = robust_intercept,
+                    slope = robust_slope,
+                    color = "robust"),
+                show.legend = FALSE,
+                size = 0.75) +
+    # robust_boot
+    # geom_abline(aes(intercept = robust_intercept_boot,
+    #                 slope = robust_slope_boot,
+    #                 color = "robust boot"),
+    #             show.legend = TRUE,
+    #             size = 0.75) +
+    xlab("Normal Quantiles") +
+    ylab("Sample Quantiles") +
+    
+    scale_color_manual(values = pal_okabe_ito[c(1:2,5:6)]) +
+    theme_minimal_grid() +
+    NULL
+  
+}
+
+
+## --------------------------------------------------------------------------------------------------
+
+ggcheck_the_glm_qq = function(m1,
+                   n_sim = 250,
+                   se = FALSE,
+                   normal = FALSE){
+  
+  simulationOutput <- simulateResiduals(fittedModel = m1, n = n_sim)
+  observed = simulationOutput$scaledResiduals %>%
+    sort()
+  
+  m1_data <- insight::get_data(m1)
+  n_points <- nrow(m1_data)
+  
+  q <- n_points + 1
+  x <- seq(1/q, 1 - 1/q, by = 1/q)
+  theoretical <- qunif(x)
+  
+  if(normal == TRUE){
+    observed <- qnorm(observed)
+    theoretical <- qnorm(theoretical)
+  }
+  
+  gg <- ggscatter(data = data.frame(
+    Theoretical = theoretical,
+    Observed = observed),
+    x="Theoretical", 
+    y="Observed",
+    title = "Quantile-Residual Uniform-QQ Plot"
+  ) +
+    
+    geom_abline(slope = 1, intercept = 0) +
+    
+    NULL
+
+  if(se == TRUE){
+    qr <- matrix(as.numeric(NA), nrow = n_points, ncol = n_sim)
+    fake_counts <- simulationOutput$simulatedResponse
+    m1_form <- find_formula(m1)$conditional
+    m1_y <- find_response(m1)
+    m1_model_name <- model_name(m1)
+    y_col <- which(names(m1_data) == m1_y)
+    for(j in 1:n_sim){
+      m1_data[, 1] <- fake_counts[, j]
+      if(m1_model_name == "glm"){
+        m1_fake <- glm(m1_form, family = "poisson", data = m1_data)
+      }
+      if(m1_model_name == "negbin"){
+        m1_fake <- glm.nb(m1_form, data = m1_data)
+      }
+      simulated_output_fake <- simulateResiduals(m1_fake, n_sim)
+      qr[,j] <- sort(simulated_output_fake$scaledResiduals)
+    }
+    qq_ci_model <- data.table(
+      Theoretical = theoretical,
+      median = apply(qr, 1, median),
+      lower = apply(qr, 1, quantile, 0.025),
+      upper = apply(qr, 1, quantile, 0.975)
+    )
+    gg <- gg +
+      # ribbon
+      geom_ribbon(data = qq_ci_model,
+                  aes(ymin = lower,
+                      ymax = upper,
+                      y = median,
+                      fill = "band"),
+                  fill = "gray",
+                  alpha = 0.6)
+  }
+  
+  gg
+  return(gg)
+}
+
+
+
+## ----ggcheck_the_spreadlevel-----------------------------------------------------------------------
+ggcheck_the_spreadlevel <- function(m1,
+                   n_boot = 200){
+  n <- nobs(m1)
+  m1_res <- residuals(m1)
+  m1_scaled <- m1_res/sd(m1_res)
+  m1_root <- sqrt(abs(m1_scaled))
+  m1_fitted <- fitted(m1)
+  
+  m2 <- lm(m1_root ~ m1_fitted)
+  m2_intercept <- coef(m2)[1]
+  m2_slope <- coef(m2)[2]
+
+  plot_data <- data.table(
+    m1_res = sqrt(abs(m1_scaled)),
+    fitted = m1_fitted
+  )
+  
+    ggplot(data = plot_data,
+         aes(x = fitted, y = m1_res)) +
+    
+    # ribbon
+    # geom_ribbon(data = qq_ci_model,
+    #             aes(ymin = lower,
+    #                 ymax = upper,
+    #                 y = median,
+    #                 fill = "band"),
+    #             fill = "gray",
+    #             alpha = 0.6) +
+    # # draw points
+      geom_point() +
+    
+      geom_smooth(method = lm) +
+   # robust 
+    # geom_abline(aes(intercept = robust_intercept,
+    #                 slope = robust_slope,
+    #                 color = "robust"),
+    #             show.legend = TRUE,
+    #             size = 0.75) +
+    # robust_boot
+    # geom_abline(aes(intercept = robust_intercept_boot,
+    #                 slope = robust_slope_boot,
+    #                 color = "robust boot"),
+    #             show.legend = TRUE,
+    #             size = 0.75) +
+    xlab("Fitted") +
+    ylab("root abs-scaled-residual") +
+    
+    
+    scale_color_manual(values = pal_okabe_ito[c(1:2,5:6)]) +
+    theme_minimal_grid() +
+    NULL
+}
+
+
+## ----ggcheck_the_model-----------------------------------------------------------------------------
+ggcheck_the_model <- function(m1){
+  gg1 <- ggcheck_the_qq(m1)
+  gg2 <- ggcheck_the_spreadlevel(m1)
+  cowplot::plot_grid(gg1, gg2, nrow = 1)
+}
+
+
+## --------------------------------------------------------------------------------------------------
 
 create_model_data <- function(
     data,
@@ -105,7 +351,7 @@ create_model_data <- function(
 
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 
 create_plot_data <- function(m1, ptm){
   gg_data <- get_data(m1) |>
@@ -140,7 +386,7 @@ create_plot_data <- function(m1, ptm){
 
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 create_emm_data <- function(m1_emm, ptm){
 
   if(is.data.frame(m1_emm) == TRUE){
@@ -178,7 +424,7 @@ create_emm_data <- function(m1_emm, ptm){
 }
 
 
-## ----combine-contrasts-------------------------------------------------------------
+## ----combine-contrasts-----------------------------------------------------------------------------
 combine_contrasts <- function(m1_pairs){
   part_1 <- m1_pairs[[1]]
   part_2 <- m1_pairs[[2]]
@@ -198,7 +444,7 @@ combine_contrasts <- function(m1_pairs){
 }
 
 
-## ----create-pairs-data-------------------------------------------------------------
+## ----create-pairs-data-----------------------------------------------------------------------------
 create_pairs_data <- function(m1_pairs, ptm){
   if(is.data.frame(m1_pairs) == TRUE){
     gg_pairs <- data.table(m1_pairs)
@@ -247,7 +493,7 @@ create_pairs_data <- function(m1_pairs, ptm){
 
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 create_nest_data <- function(m1, gg_data, ptm){
   gg_nest_data <- gg_data[, .(y = mean(get(ptm$response_label), na.rm = TRUE)),
                           by = c(ptm$factor1_label, ptm$factor1_label, "factor_1",
@@ -261,7 +507,7 @@ create_nest_data <- function(m1, gg_data, ptm){
 }
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 # need to find maximum y-value from experimental reps, technical reps, or CIs
 add_y_pos <- function(gg_pairs, gg_data, gg_emm, gg_nest, ptm){
   if(ptm$nested == FALSE | (ptm$nested == TRUE & ptm$show_nest == TRUE)){
@@ -290,12 +536,18 @@ add_y_pos <- function(gg_pairs, gg_data, gg_emm, gg_nest, ptm){
 
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 get_ptm_parameters <- function(m1, m1_pairs){
   ptm <- list()
   ptm$response_label <- find_response(m1)
   predictors <- find_predictors(m1)
-  predictors_fixed <- predictors$conditional
+  predictor_names <- names(predictors)
+  if(predictor_names[1] == "conditional"){
+    predictors_fixed <- predictors$conditional
+  }
+  if(predictor_names[1] == "fixed"){
+    predictors_fixed <- predictors$fixed
+  }
   ptm$factor1_label <- predictors_fixed[1]
   ptm$factor2_label <- predictors_fixed[2]
   ptm$two_factors <- ifelse(is.na(ptm$factor2_label), FALSE, TRUE)
@@ -336,7 +588,7 @@ get_ptm_parameters <- function(m1, m1_pairs){
 }
 
 
-## ----------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 plot_response <- function(m1,
                           m1_emm,
                           m1_pairs,
@@ -472,7 +724,7 @@ plot_response <- function(m1,
 }
 
 
-## ----output-as-R-file--------------------------------------------------------------
+## ----output-as-R-file------------------------------------------------------------------------------
 # highlight and run to put update into R folder
 # knitr::purl("ggptm.Rmd")
 

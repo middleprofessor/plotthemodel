@@ -412,7 +412,11 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         # print model
         self$results$model$setContent(model_string)
         # model results
-        self$results$coef$setContent(coef(summary(m1)))
+        if(model_class == "anova"){
+          self$results$coef$setContent(summary(m1))
+        }else{
+          self$results$coef$setContent(coef(summary(m1)))
+        }
         # emm results
         self$results$emm$setContent(m1_emm)
         # contrasts results
@@ -422,6 +426,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       #            table <- self$results$ttest # use this line to find if code gets this far
 
 
+      # objects for response plot
       if(working_model == TRUE){
         image <- self$results$plot
         # image$setState(plotData)
@@ -431,14 +436,20 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         model_list <- NULL
       }
       
-      # prepare m1_check model for check_the_model
-      # use nest means if there are subsampled reps
+      # objects for check the model plot
       m1_check <- NULL
+      check_m1 <- NULL
       if(working_model == TRUE){
         if(check_the_model == TRUE){
-          m1_check <- copy(m1)
+          m1_check <- m1
+          # check_m1 <- simulateResiduals(fittedModel = m1_check,
+          #                               n = 250,
+          #                               refit = FALSE)
+          # gg_check <- plot(check_m1)
         }else{
           m1_check <- NULL
+          gg_check <- NULL
+          check_m1 <- NULL
         }
         if(model_class == "anova"){m1_check <- NULL}
         do_model_check <- TRUE
@@ -449,7 +460,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       }
       
       ### DEBUG ONLY remove this when 
-      m1_check <- NULL
+#      m1_check <- NULL
       
     },
     .plot=function(image, ...) {
@@ -480,15 +491,27 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       }
     },
     .plot_check=function(image_check, ...){
+      # notes:
+      # 1. sending m1 is infinitely slow for mixed models unless really small
+      # 2. sending check_m1 is infinitely slow for mixed models unless really small
+      # 2. sending gg_check plots in a quartz window because plot statement in main function
+      #    and crashes jamovi
       # check the model
       m1_check <- image_check$state
       if(!is.null(m1_check)){
-        check_m1 <- simulateResiduals(fittedModel = m1_check,
-                                      n = 250,
-                                      refit = FALSE)
-        g <- plot(check_m1)
-        print(g)
+        # check_m1 <- simulateResiduals(fittedModel = m1_check,
+        #                               n = 250,
+        #                               refit = FALSE)
+        # gg_check <- plot(check_m1)
+        gg_check <- ggcheck_the_model(m1_check)
+        print(gg_check)
         TRUE
       }
+      # check_m1 <- image_check$state
+      # if(!is.null(check_m1)){
+      #   gg_check <- plot(check_m1)
+      #   print(gg_check)
+      #   TRUE
+      # }
     })
 )
