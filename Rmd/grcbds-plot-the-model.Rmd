@@ -484,14 +484,9 @@ write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
 
 # CRD-Gamma - 2 groups
 
-The researchers want to estimate the effect of LONP1 on muscle cross-sectional area (CSA). For the experiment, the researchers randomly sample 12 female mice, each from a different litter, and randomly assign 6 mice to Control (with functional LONP1) and 6 mice to mKO (muscle specific LONP1 knock-out).
+See figure 2K. The researchers have measured the effect of muscle specific KO (LONP1 mKO) on Blood Lactate levels. Amounts of stuff often approximate a Gamma distribution
 
 This is a Completely Randomized Design (CRD) with a single factor (Treatment) with two levels (Control and mKO). The classic test for this is Student's (or Independent Samples) t-Test, which is a special case of a Linear Model.
-
-For PlotTheModel, use
-
-1. Experimental Design = CRD
-2. 
 
 
 ```{r fake-2x0-crd-gamma}
@@ -508,31 +503,31 @@ fake_data <- simulator(
   n_exp = 1, # number of experiments
   design = "pseudoreplicated",
   correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
-  beta = c(2400, -1000),
+  beta = c(3.5, 4),
   sigma_exp.block = 0, # only sampling 1 litter
   sigma_rep = 0, # among mouse variance
-  sigma_ss = 1200, # among technical reps within mouse but really this is among mice
+  sigma_ss = 1.5, # among technical reps within mouse but really this is among mice
   block_name = "litter",
   rep_name = "mouse",
   ss_name = "ss"
 )
-setnames(fake_data, "sim_1", "csa") # cross-sectional area
+setnames(fake_data, "sim_1", "lactate") # cross-sectional area
 fake_data[, genotype := ifelse(treatment == "Cn", "Control", "mKO")]
 fake_data[, genotype := factor(genotype, levels = c("Control", "mKO"))]
-m1 <- lm(csa ~ genotype, data = fake_data)
+m1 <- lm(lactate ~ genotype, data = fake_data)
 m1_emm <- emmeans(m1, specs = "genotype")
 m1_pairs <- contrast(m1_emm,
                      method = "revpairwise")
 ggplot_the_response(m1, m1_emm, m1_pairs)
 
-glm1 <- glm(csa ~ genotype, family = Gamma(link = "log"), data = fake_data)
+glm1 <- glm(lactate ~ genotype, family = Gamma(link = "log"), data = fake_data)
 glm1_emm <- emmeans(glm1, specs = "genotype", type = "response")
 glm1_pairs <- contrast(glm1_emm,
                      method = "revpairwise")
 
 outfile_name <- "crd2x0-gamma.xlsx"
 outpath <- here(data_folder, outfile_name)
-y_cols <- c("mouse", "genotype", "csa")
+y_cols <- c("mouse", "genotype", "lactate")
 write_xlsx(fake_data[, .SD, .SDcols = y_cols], outpath)
 ```
 

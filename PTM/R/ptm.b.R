@@ -476,7 +476,9 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         nest_id_val <- ifelse(is.null(self$options$nest_id), NA, self$options$nest_id)
         palette_val <- self$options$pal
         jitter_width_val <- ifelse(join_blocks_val == TRUE, 0, 0.2)
-        
+        y_label_val <- ifelse(is.null(self$options$y_label), NA, self$options$y_label)
+        if(y_label_val == ""){y_label_val <- NA}
+
         # get the plot!
         gg <- plot_response(m1,
                             m1_emm,
@@ -485,7 +487,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                             join_blocks = join_blocks_val,
                             nest_id = nest_id_val,
                             jitter_width = jitter_width_val,
-                            palette = palette_val)
+                            palette = palette_val,
+                            y_label = y_label_val)
         print(gg)
         TRUE       
       }
