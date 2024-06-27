@@ -302,5 +302,36 @@ m1_pairs <- contrast(m1_emm,
 m1_pairs
 ```
 
+# CRD - 3 x 2 to compare model SE vs sample SE
+
+```{r fake-3x2-crd}
+seed <- 1
+fake_data <- simulator(
+  seed_i = seed,
+  n_sim = 1,
+  n_treat = 3, # number of treatment levels
+  n_block = 1, # number of litters (blocks)
+  n_rep = 10, # number of mice per litter:treatment
+  n_ss = 1, # number of subsamples
+  n_exp = 2, # number of experiments
+  design = "pseudoreplicated",
+  correlated_slopes = FALSE, # TRUE uses random int/slope model to generate data
+  beta = c(10, 1,-1),
+  sigma_exp.block = 0, # only sampling 1 litter
+  sigma_rep = 1, # among mouse variance
+  sigma_ss = 0, # among technical reps within mouse
+  block_name = "litter",
+  rep_name = "mouse",
+  ss_name = "ss"
+)
+fake_data[, treatment := paste(treatment, exp, sep = "_")]
+fake_data <- fake_data[, .SD, .SDcols = c("treatment", "sim_1")]
+sample_SEM <- fake_data[, .(SE = sd(sim_1)/sqrt(.N)), by = "treatment"]
+m1 <- lm(sim_1 ~ treatment, data = fake_data)
+m1_emm <- emmeans(m1, specs = "treatment")
+sample_SEM
+m1_emm
+mean(sample_SEM$SE)
+```
 
 

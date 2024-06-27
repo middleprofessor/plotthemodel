@@ -633,6 +633,7 @@ plot_response <- function(m1,
                           jitter_spread = 0.8,
                           jitter_width = 0.2,
                           palette = "pal_ggplot",
+                          x_axis_labels = NA,
                           y_label = NA){
   
   # correct m1_pairs if its a list
@@ -656,6 +657,9 @@ plot_response <- function(m1,
     gg_nest <- NA
   }
   gg_pairs <- add_y_pos(gg_pairs, gg_data, gg_emm, gg_nest, ptm)
+  
+  if(any(is.na(x_axis_labels)) == TRUE){x_axis_labels <- levels(gg_data$plot_factor)}
+
   
   gg <- ggplot(data = gg_data,
                aes(x = plot_factor_id,
@@ -745,11 +749,13 @@ plot_response <- function(m1,
                        size = 4,
                        tip.length = 0.01)
   
-  # add basic graph stuff
+  # add axis labels and x-axis tick labels
   gg <- gg +
     ylab(y_label) +
-    scale_x_discrete(labels = levels(gg_data$plot_factor)) +
-    theme_pubr() +
+    scale_x_discrete(labels = x_axis_labels)
+    
+  # add theme
+  gg <- gg + theme_pubr() +
     theme(axis.title.x = element_blank())
   
   # gg
