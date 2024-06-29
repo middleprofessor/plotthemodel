@@ -626,6 +626,8 @@ get_ptm_parameters <- function(m1, m1_pairs){
 plot_response <- function(m1,
                           m1_emm,
                           m1_pairs,
+                          m1_pairs_rows = NA,
+                          rescale = 1,
                           join_blocks = FALSE,
                           show_nest_data = FALSE,
                           block_id = NA, # this is the column containing the blocks
@@ -659,6 +661,16 @@ plot_response <- function(m1,
   gg_pairs <- add_y_pos(gg_pairs, gg_data, gg_emm, gg_nest, ptm)
   
   if(any(is.na(x_axis_labels)) == TRUE){x_axis_labels <- levels(gg_data$plot_factor)}
+  
+  # rescale
+  gg_data[, y := y / rescale]
+  gg_emm[, mean := mean / rescale]
+  gg_emm[, lo := lo / rescale]
+  gg_emm[, hi := hi / rescale]
+  gg_pairs[, y_pos := y_pos / rescale]
+  if(!is.na(gg_nest)){
+    gg_nest[, nest_mean := nest_mean / rescale]
+  }
 
   
   gg <- ggplot(data = gg_data,
@@ -765,6 +777,7 @@ plot_response <- function(m1,
 ```
 
 # output R file
+
 ```{r output-as-R-file}
 # highlight and run to put update into R folder
 # knitr::purl("ggptm.Rmd")
