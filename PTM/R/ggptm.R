@@ -1,4 +1,4 @@
-## ----setup, include=FALSE------------------------------------------------------------------
+## ----setup, include=FALSE-------------------------------------------------------
 # wrangling
 library(data.table)
 library(stringr)
@@ -12,7 +12,7 @@ library(cowplot)
 
 
 
-## ----palettes------------------------------------------------------------------------------
+## ----palettes-------------------------------------------------------------------
 # get some palettes
 pal_okabe_ito <- c(
   "#E69F00",
@@ -30,7 +30,7 @@ pal_jco <- pal_jco("default")(10)
 pal_frontiers <- pal_frontiers("default")(7)
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 remove_parentheses <- function(x){
   if(substr(x, 1, 1) == "("){
     x <- substr(x, 2, nchar(x))
@@ -51,7 +51,7 @@ pretty_pvalues <- function(p){
 }
 
 
-## ----ggcheck_the_qq, warning = FALSE-------------------------------------------------------
+## ----ggcheck_the_qq, warning = FALSE--------------------------------------------
 ggcheck_the_qq = function(m1,
                    line = "robust",
                    n_boot = 200){
@@ -158,7 +158,7 @@ ggcheck_the_qq = function(m1,
 }
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 
 ggcheck_the_glm_qq = function(m1,
                    n_sim = 250,
@@ -234,7 +234,7 @@ ggcheck_the_glm_qq = function(m1,
 
 
 
-## ----ggcheck_the_spreadlevel---------------------------------------------------------------
+## ----ggcheck_the_spreadlevel----------------------------------------------------
 ggcheck_the_spreadlevel <- function(m1,
                    n_boot = 200){
   n <- nobs(m1)
@@ -289,7 +289,7 @@ ggcheck_the_spreadlevel <- function(m1,
 }
 
 
-## ----ggcheck_the_model---------------------------------------------------------------------
+## ----ggcheck_the_model----------------------------------------------------------
 ggcheck_the_model <- function(m1){
   gg1 <- ggcheck_the_qq(m1)
   gg2 <- ggcheck_the_spreadlevel(m1)
@@ -297,7 +297,7 @@ ggcheck_the_model <- function(m1){
 }
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 
 create_model_data <- function(
     data,
@@ -351,7 +351,7 @@ create_model_data <- function(
 
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 
 create_plot_data <- function(m1, ptm){
   gg_data <- get_data(m1) |>
@@ -386,7 +386,7 @@ create_plot_data <- function(m1, ptm){
 
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 create_emm_data <- function(m1_emm, ptm){
 
   if(is.data.frame(m1_emm) == TRUE){
@@ -424,7 +424,7 @@ create_emm_data <- function(m1_emm, ptm){
 }
 
 
-## ----combine-contrasts---------------------------------------------------------------------
+## ----combine-contrasts----------------------------------------------------------
 combine_contrasts <- function(m1_pairs){
   part_1 <- m1_pairs[[1]]
   part_2 <- m1_pairs[[2]]
@@ -444,13 +444,18 @@ combine_contrasts <- function(m1_pairs){
 }
 
 
-## ----create-pairs-data---------------------------------------------------------------------
-create_pairs_data <- function(m1_pairs, ptm){
+## ----create-pairs-data----------------------------------------------------------
+create_pairs_data <- function(m1_pairs,
+                              hide_pairs, # the rows to hide
+                              ptm){
   if(is.data.frame(m1_pairs) == TRUE){
     gg_pairs <- data.table(m1_pairs)
   }else{
     gg_pairs <- summary(m1_pairs) %>%
       data.table()
+  }
+  if(!any(is.na(hide_pairs))){
+    gg_pairs <- gg_pairs[-hide_pairs,]    
   }
   
   # is the contrast a difference or ratio?
@@ -493,7 +498,7 @@ create_pairs_data <- function(m1_pairs, ptm){
 
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 create_nest_data <- function(m1, gg_data, ptm){
   gg_nest_data <- gg_data[, .(y = mean(get(ptm$response_label), na.rm = TRUE)),
                           by = c(ptm$factor1_label, ptm$factor1_label, "factor_1",
@@ -507,7 +512,7 @@ create_nest_data <- function(m1, gg_data, ptm){
 }
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 # need to find maximum y-value from experimental reps, technical reps, or CIs
 add_y_pos <- function(gg_pairs, gg_data, gg_emm, gg_nest, ptm){
   if(ptm$nested == FALSE | (ptm$nested == TRUE & ptm$show_nest == TRUE)){
@@ -536,7 +541,7 @@ add_y_pos <- function(gg_pairs, gg_data, gg_emm, gg_nest, ptm){
 
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 get_ptm_parameters <- function(m1, m1_pairs){
   ptm <- list()
   ptm$response_label <- find_response(m1)
@@ -588,11 +593,12 @@ get_ptm_parameters <- function(m1, m1_pairs){
 }
 
 
-## ------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------
 plot_response <- function(m1,
                           m1_emm,
                           m1_pairs,
-                          m1_pairs_rows = NA,
+                          hide_pairs = NA, # rows of m1_pairs to hide
+                          rescale = 1,
                           join_blocks = FALSE,
                           show_nest_data = FALSE,
                           block_id = NA, # this is the column containing the blocks
@@ -617,7 +623,7 @@ plot_response <- function(m1,
   gg_data <- create_plot_data(m1, ptm)
   gg_emm <- create_emm_data(m1_emm, ptm)
   ptm$plot_factor_levels <- gg_emm[, plot_factor] |> as.character()
-  gg_pairs <- create_pairs_data(m1_pairs, ptm)
+  gg_pairs <- create_pairs_data(m1_pairs, hide_pairs, ptm)
   if(!is.na(nest_id)){
     gg_nest <- create_nest_data(m1, gg_data, ptm)
   }else{
@@ -626,6 +632,16 @@ plot_response <- function(m1,
   gg_pairs <- add_y_pos(gg_pairs, gg_data, gg_emm, gg_nest, ptm)
   
   if(any(is.na(x_axis_labels)) == TRUE){x_axis_labels <- levels(gg_data$plot_factor)}
+  
+  # rescale
+  gg_data[, y := y / rescale]
+  gg_emm[, mean := mean / rescale]
+  gg_emm[, lo := lo / rescale]
+  gg_emm[, hi := hi / rescale]
+  gg_pairs[, y_pos := y_pos / rescale]
+  if(!is.na(gg_nest)){
+    gg_nest[, nest_mean := nest_mean / rescale]
+  }
 
   
   gg <- ggplot(data = gg_data,
@@ -731,7 +747,7 @@ plot_response <- function(m1,
 }
 
 
-## ----output-as-R-file----------------------------------------------------------------------
+## ----output-as-R-file-----------------------------------------------------------
 # highlight and run to put update into R folder
 # knitr::purl("ggptm.Rmd")
 

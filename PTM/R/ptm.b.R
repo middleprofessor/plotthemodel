@@ -477,17 +477,34 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         palette_val <- self$options$pal
         jitter_width_val <- ifelse(join_blocks_val == TRUE, 0, 0.2)
         y_label_val <- ifelse(is.null(self$options$y_label), NA, self$options$y_label)
-        if(y_label_val == ""){y_label_val <- NA}
-
+        if(!is.na(y_label_val) & y_label_val == ""){y_label_val <- NA}
+        x_label_val <- ifelse(is.null(self$options$x_label), NA, self$options$x_label)
+        if(!is.na(x_label_val) & x_label_val == ""){x_label_val <- NA}
+        x_label_val <- str_split(x_label_val, ",") |>
+          unlist() |>
+          trimws()
+        hide_pairs_val <- ifelse(is.null(self$options$hide_pairs), NA, self$options$hide_pairs)
+        if(!is.na(hide_pairs_val) & hide_pairs_val == ""){hide_pairs_val <- NA}
+        hide_pairs_val <- str_split(hide_pairs_val, ",") |>
+          unlist() |>
+          trimws() |>
+          as.integer()
+        rescale_val <- ifelse(is.null(self$options$rescale), 1, self$options$rescale)
+        if(rescale_val == ""){rescale_val <- 1}
+        
+ 
         # get the plot!
         gg <- plot_response(m1,
                             m1_emm,
                             m1_pairs,
+                            rescale = rescale_val,
+                            hide_pairs = hide_pairs_val,
                             show_nest_data = show_nest_data_val,
                             join_blocks = join_blocks_val,
                             nest_id = nest_id_val,
                             jitter_width = jitter_width_val,
                             palette = palette_val,
+                            x_axis_labels = x_label_val,
                             y_label = y_label_val)
         print(gg)
         TRUE       

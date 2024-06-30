@@ -125,6 +125,10 @@ options:
           name:  fdr
       default: default
 
+    - name: hide_pairs
+      title: Hide Pairs
+      type: String
+
     - name: pal
       title: Color palette
       type: List
@@ -158,5 +162,14 @@ options:
     - name: y_label
       title: y-axis label
       type: String
+
+    - name: x_label
+      title: x-axis labels
+      type: String
+
+    - name: rescale
+      title: Rescale y-axis
+      type: Number
+      default: 1
 
 ...

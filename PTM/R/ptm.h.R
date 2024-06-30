@@ -20,10 +20,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             trtvsctrl = FALSE,
             simple = TRUE,
             adjust = "default",
+            hide_pairs = NULL,
             pal = "pal_okabe_ito",
             tech_reps = FALSE,
             join_blocks = FALSE,
-            y_label = NULL, ...) {
+            y_label = NULL,
+            x_label = NULL,
+            rescale = 1, ...) {
 
             super$initialize(
                 package="PTM",
@@ -110,6 +113,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "holm",
                     "fdr"),
                 default="default")
+            private$..hide_pairs <- jmvcore::OptionString$new(
+                "hide_pairs",
+                hide_pairs)
             private$..pal <- jmvcore::OptionList$new(
                 "pal",
                 pal,
@@ -133,6 +139,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..y_label <- jmvcore::OptionString$new(
                 "y_label",
                 y_label)
+            private$..x_label <- jmvcore::OptionString$new(
+                "x_label",
+                x_label)
+            private$..rescale <- jmvcore::OptionNumber$new(
+                "rescale",
+                rescale,
+                default=1)
 
             self$.addOption(private$..dep)
             self$.addOption(private$..factor1)
@@ -148,10 +161,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..trtvsctrl)
             self$.addOption(private$..simple)
             self$.addOption(private$..adjust)
+            self$.addOption(private$..hide_pairs)
             self$.addOption(private$..pal)
             self$.addOption(private$..tech_reps)
             self$.addOption(private$..join_blocks)
             self$.addOption(private$..y_label)
+            self$.addOption(private$..x_label)
+            self$.addOption(private$..rescale)
         }),
     active = list(
         dep = function() private$..dep$value,
@@ -168,10 +184,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         trtvsctrl = function() private$..trtvsctrl$value,
         simple = function() private$..simple$value,
         adjust = function() private$..adjust$value,
+        hide_pairs = function() private$..hide_pairs$value,
         pal = function() private$..pal$value,
         tech_reps = function() private$..tech_reps$value,
         join_blocks = function() private$..join_blocks$value,
-        y_label = function() private$..y_label$value),
+        y_label = function() private$..y_label$value,
+        x_label = function() private$..x_label$value,
+        rescale = function() private$..rescale$value),
     private = list(
         ..dep = NA,
         ..factor1 = NA,
@@ -187,10 +206,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..trtvsctrl = NA,
         ..simple = NA,
         ..adjust = NA,
+        ..hide_pairs = NA,
         ..pal = NA,
         ..tech_reps = NA,
         ..join_blocks = NA,
-        ..y_label = NA)
+        ..y_label = NA,
+        ..x_label = NA,
+        ..rescale = NA)
 )
 
 PTMResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -295,10 +317,13 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param trtvsctrl .
 #' @param simple .
 #' @param adjust .
+#' @param hide_pairs .
 #' @param pal .
 #' @param tech_reps .
 #' @param join_blocks .
 #' @param y_label .
+#' @param x_label .
+#' @param rescale .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$model_builder_notes} \tab \tab \tab \tab \tab a preformatted \cr
@@ -329,10 +354,13 @@ PTM <- function(
     trtvsctrl = FALSE,
     simple = TRUE,
     adjust = "default",
+    hide_pairs,
     pal = "pal_okabe_ito",
     tech_reps = FALSE,
     join_blocks = FALSE,
-    y_label) {
+    y_label,
+    x_label,
+    rescale = 1) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("PTM requires jmvcore to be installed (restart may be required)")
@@ -367,10 +395,13 @@ PTM <- function(
         trtvsctrl = trtvsctrl,
         simple = simple,
         adjust = adjust,
+        hide_pairs = hide_pairs,
         pal = pal,
         tech_reps = tech_reps,
         join_blocks = join_blocks,
-        y_label = y_label)
+        y_label = y_label,
+        x_label = x_label,
+        rescale = rescale)
 
     analysis <- PTMClass$new(
         options = options,

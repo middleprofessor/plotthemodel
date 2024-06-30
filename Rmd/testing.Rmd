@@ -366,7 +366,19 @@ m1_pairs <- contrast(m1_emm,
   summary(infer = TRUE)
 plot_response(m1,
               m1_emm,
-              m1_pairs[c(1,3,2),],
+              m1_pairs,
+              hide_pairs = 4,
               rescale = 10^6)
+
+m1 <- lm(Fbxo32 ~ treatment, data = fig7d)
+m1_emm <- emmeans(m1, specs = "treatment")
+m1_pairs <- contrast(m1_emm,
+                     method = "revpairwise") |>
+  summary(infer = TRUE)
+plot_response(m1,
+              m1_emm,
+              m1_pairs,
+              hide_pairs = c(3,4))
+
 ```
 

@@ -471,12 +471,17 @@ combine_contrasts <- function(m1_pairs){
 
 
 ```{r create-pairs-data}
-create_pairs_data <- function(m1_pairs, ptm){
+create_pairs_data <- function(m1_pairs,
+                              hide_pairs, # the rows to hide
+                              ptm){
   if(is.data.frame(m1_pairs) == TRUE){
     gg_pairs <- data.table(m1_pairs)
   }else{
     gg_pairs <- summary(m1_pairs) %>%
       data.table()
+  }
+  if(!any(is.na(hide_pairs))){
+    gg_pairs <- gg_pairs[-hide_pairs,]    
   }
   
   # is the contrast a difference or ratio?
@@ -626,7 +631,7 @@ get_ptm_parameters <- function(m1, m1_pairs){
 plot_response <- function(m1,
                           m1_emm,
                           m1_pairs,
-                          m1_pairs_rows = NA,
+                          hide_pairs = NA, # rows of m1_pairs to hide
                           rescale = 1,
                           join_blocks = FALSE,
                           show_nest_data = FALSE,
@@ -652,7 +657,7 @@ plot_response <- function(m1,
   gg_data <- create_plot_data(m1, ptm)
   gg_emm <- create_emm_data(m1_emm, ptm)
   ptm$plot_factor_levels <- gg_emm[, plot_factor] |> as.character()
-  gg_pairs <- create_pairs_data(m1_pairs, ptm)
+  gg_pairs <- create_pairs_data(m1_pairs, hide_pairs, ptm)
   if(!is.na(nest_id)){
     gg_nest <- create_nest_data(m1, gg_data, ptm)
   }else{
@@ -776,7 +781,7 @@ plot_response <- function(m1,
 }
 ```
 
-# output R file
+# output R file 
 
 ```{r output-as-R-file}
 # highlight and run to put update into R folder
