@@ -122,6 +122,9 @@ children:
             name: y_label
             format: string
           - type: TextBox
+            name: y_units
+            format: string
+          - type: TextBox
             name: x_label
             format: string
           - type: TextBox

@@ -378,7 +378,10 @@ m1_pairs <- contrast(m1_emm,
 plot_response(m1,
               m1_emm,
               m1_pairs,
-              hide_pairs = c(3,4))
+              hide_pairs = c(3,4),
+              y_label = "CSA",
+              y_units = "mm^2",
+              rescale = 1000000)
 
 ```
 

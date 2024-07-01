@@ -478,6 +478,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         jitter_width_val <- ifelse(join_blocks_val == TRUE, 0, 0.2)
         y_label_val <- ifelse(is.null(self$options$y_label), NA, self$options$y_label)
         if(!is.na(y_label_val) & y_label_val == ""){y_label_val <- NA}
+        y_units_val <- ifelse(is.null(self$options$y_units), NA, self$options$y_units)
+        if(!is.na(y_units_val) & y_units_val == ""){y_units_val <- NA}
         x_label_val <- ifelse(is.null(self$options$x_label), NA, self$options$x_label)
         if(!is.na(x_label_val) & x_label_val == ""){x_label_val <- NA}
         x_label_val <- str_split(x_label_val, ",") |>
@@ -504,8 +506,9 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                             nest_id = nest_id_val,
                             jitter_width = jitter_width_val,
                             palette = palette_val,
-                            x_axis_labels = x_label_val,
-                            y_label = y_label_val)
+                            y_label = y_label_val,
+                            y_units = y_units_val,
+                            x_axis_labels = x_label_val)
         print(gg)
         TRUE       
       }

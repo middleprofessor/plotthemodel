@@ -25,6 +25,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             tech_reps = FALSE,
             join_blocks = FALSE,
             y_label = NULL,
+            y_units = NULL,
             x_label = NULL,
             rescale = 1, ...) {
 
@@ -139,6 +140,9 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..y_label <- jmvcore::OptionString$new(
                 "y_label",
                 y_label)
+            private$..y_units <- jmvcore::OptionString$new(
+                "y_units",
+                y_units)
             private$..x_label <- jmvcore::OptionString$new(
                 "x_label",
                 x_label)
@@ -166,6 +170,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..tech_reps)
             self$.addOption(private$..join_blocks)
             self$.addOption(private$..y_label)
+            self$.addOption(private$..y_units)
             self$.addOption(private$..x_label)
             self$.addOption(private$..rescale)
         }),
@@ -189,6 +194,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         tech_reps = function() private$..tech_reps$value,
         join_blocks = function() private$..join_blocks$value,
         y_label = function() private$..y_label$value,
+        y_units = function() private$..y_units$value,
         x_label = function() private$..x_label$value,
         rescale = function() private$..rescale$value),
     private = list(
@@ -211,6 +217,7 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..tech_reps = NA,
         ..join_blocks = NA,
         ..y_label = NA,
+        ..y_units = NA,
         ..x_label = NA,
         ..rescale = NA)
 )
@@ -322,6 +329,7 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param tech_reps .
 #' @param join_blocks .
 #' @param y_label .
+#' @param y_units .
 #' @param x_label .
 #' @param rescale .
 #' @return A results object containing:
@@ -359,6 +367,7 @@ PTM <- function(
     tech_reps = FALSE,
     join_blocks = FALSE,
     y_label,
+    y_units,
     x_label,
     rescale = 1) {
 
@@ -400,6 +409,7 @@ PTM <- function(
         tech_reps = tech_reps,
         join_blocks = join_blocks,
         y_label = y_label,
+        y_units = y_units,
         x_label = x_label,
         rescale = rescale)
 

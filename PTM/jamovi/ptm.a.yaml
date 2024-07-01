@@ -163,6 +163,10 @@ options:
       title: y-axis label
       type: String
 
+    - name: y_units
+      title: y-axis units
+      type: String
+
     - name: x_label
       title: x-axis labels
       type: String

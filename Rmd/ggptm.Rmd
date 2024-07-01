@@ -60,6 +60,15 @@ pretty_pvalues <- function(p){
   p_string[p < 0.001] <- "p<0.001"
   return(p_string)
 }
+
+sci_to_10 <- function(n) {
+  # https://stackoverflow.com/questions/29785555/in-r-using-scientific-notation-10-rather-than-e
+  output <- format(n, scientific = TRUE)
+  output <- sub("1e+", "10^", output) #Replace e with 10^
+  output <- sub("\\+0?", "", output) #Remove + symbol and leading zeros on expoent, if > 1
+  output <- sub("-0?", "-", output) #Leaves - symbol but removes leading zeros on expoent, if < 1
+  return(output)
+}
 ```
 
 # Check the model functions
@@ -640,8 +649,9 @@ plot_response <- function(m1,
                           jitter_spread = 0.8,
                           jitter_width = 0.2,
                           palette = "pal_ggplot",
-                          x_axis_labels = NA,
-                          y_label = NA){
+                          y_label = NA,
+                          y_units = NA,
+                          x_axis_labels = NA){
   
   # correct m1_pairs if its a list
   if(!is.null(names(m1_pairs[[1]]))){
@@ -767,14 +777,27 @@ plot_response <- function(m1,
                        tip.length = 0.01)
   
   # add y-axis label
-  units_label <- NA # at this point just combine y_label and units_label
-  if(is.na(units_label)){
+  if(rescale != 1){
+    if(rescale > 1000){
+      rescale_str <- sci_to_10(rescale)
+    }else{
+      rescale_str <- as.character(rescale)
+    }
+    if(is.na(y_units)){
+      y_units <- paste0("X", rescale_str)
+    }else{
+      y_units <- paste0("X", rescale_str, " ", y_units)
+    }
+  }
+  y_label <- str_replace(y_label, " ", "~")
+  y_units <- str_replace(y_units, " ", "~")
+  if(is.na(y_units)){
     gg <- gg +
       ylab(bquote(.(rlang::parse_expr(paste(y_label)))))
   }else{
     gg <- gg +
       ylab(bquote(.(rlang::parse_expr(paste(y_label)))
-                  ~(.(rlang::parse_expr(paste(units_label))))))
+                  ~(.(rlang::parse_expr(paste(y_units))))))
   }
   
   
