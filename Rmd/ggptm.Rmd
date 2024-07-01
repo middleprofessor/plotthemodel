@@ -766,10 +766,20 @@ plot_response <- function(m1,
                        size = 4,
                        tip.length = 0.01)
   
-  # add axis labels and x-axis tick labels
-  gg <- gg +
-    ylab(y_label) +
-    scale_x_discrete(labels = x_axis_labels)
+  # add y-axis label
+  units_label <- NA # at this point just combine y_label and units_label
+  if(is.na(units_label)){
+    gg <- gg +
+      ylab(bquote(.(rlang::parse_expr(paste(y_label)))))
+  }else{
+    gg <- gg +
+      ylab(bquote(.(rlang::parse_expr(paste(y_label)))
+                  ~(.(rlang::parse_expr(paste(units_label))))))
+  }
+  
+  
+  # x-axis tick labels
+  gg <- gg + scale_x_discrete(labels = x_axis_labels)
     
   # add theme
   gg <- gg + theme_pubr() +
