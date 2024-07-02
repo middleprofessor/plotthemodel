@@ -5,6 +5,12 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
   "PTMClass",
   inherit = PTMBase,
   private = list(
+    .init = function(){
+      # https://forum.jamovi.org/viewtopic.php?t=472
+     self$results$plot$setSize(self$options$plot_width, 300)
+#      self$results$plot$setSize(500, 400)
+      #      self$results$plot$setSize(self$options$width, self$options$height)
+    },
     .run = function() {
       
       # source_path <- here("R", "ggplot_the_model.R")

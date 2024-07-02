@@ -119,6 +119,9 @@ children:
         margin: large
         children:
           - type: TextBox
+            name: font_size
+            format: number
+          - type: TextBox
             name: y_label
             format: string
           - type: TextBox
@@ -130,3 +133,9 @@ children:
           - type: TextBox
             name: rescale
             format: number
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: TextBox
+        name: plot_width
+        format: number

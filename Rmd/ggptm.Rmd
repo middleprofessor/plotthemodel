@@ -651,7 +651,9 @@ plot_response <- function(m1,
                           palette = "pal_ggplot",
                           y_label = NA,
                           y_units = NA,
-                          x_axis_labels = NA){
+                          x_axis_labels = NA,
+                          font_size = 12
+                          ){
   
   # correct m1_pairs if its a list
   if(!is.null(names(m1_pairs[[1]]))){
@@ -805,7 +807,7 @@ plot_response <- function(m1,
   gg <- gg + scale_x_discrete(labels = x_axis_labels)
     
   # add theme
-  gg <- gg + theme_pubr() +
+  gg <- gg + theme_pubr(base_size = font_size) +
     theme(axis.title.x = element_blank())
   
   # gg

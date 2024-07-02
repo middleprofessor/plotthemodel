@@ -272,8 +272,26 @@ m1_emm <- emmeans(m1, specs = c("surgery", "genotype"))
 m1_pairs <- contrast(m1_emm,
                      method = "revpairwise",
                      simple = "each",
-                     combine = "TRUE") |>
+                     combine = "TRUE",
+                     adjust = "none") |>
   summary(infer = TRUE)
+
+m1b_emm <- emmeans(m1, ~ surgery | genotype)
+m1b_pairs <- contrast(m1b_emm,
+                     method = "pairwise",
+                     simple = "each",
+                     combine = "TRUE",
+                     adjust = "none") |>
+  summary(infer = TRUE)
+
+m1_emm
+m1b_emm
+
+m1_pairs
+m1b_pairs
+```
+
+```{r rcbd-2x2}
 m2_pairs <- contrast(m1_emm,
                      method = "revpairwise",
                      simple = "each") |>
@@ -381,7 +399,8 @@ plot_response(m1,
               hide_pairs = c(3,4),
               y_label = "CSA",
               y_units = "mm^2",
-              rescale = 1000000)
+              rescale = 1000000,
+              font_size = 14)
 
 ```
 

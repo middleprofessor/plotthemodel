@@ -24,6 +24,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             pal = "pal_okabe_ito",
             tech_reps = FALSE,
             join_blocks = FALSE,
+            plot_width = 400,
+            font_size = 12,
             y_label = NULL,
             y_units = NULL,
             x_label = NULL,
@@ -137,6 +139,14 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "join_blocks",
                 join_blocks,
                 default=FALSE)
+            private$..plot_width <- jmvcore::OptionInteger$new(
+                "plot_width",
+                plot_width,
+                default=400)
+            private$..font_size <- jmvcore::OptionInteger$new(
+                "font_size",
+                font_size,
+                default=12)
             private$..y_label <- jmvcore::OptionString$new(
                 "y_label",
                 y_label)
@@ -169,6 +179,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..pal)
             self$.addOption(private$..tech_reps)
             self$.addOption(private$..join_blocks)
+            self$.addOption(private$..plot_width)
+            self$.addOption(private$..font_size)
             self$.addOption(private$..y_label)
             self$.addOption(private$..y_units)
             self$.addOption(private$..x_label)
@@ -193,6 +205,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         pal = function() private$..pal$value,
         tech_reps = function() private$..tech_reps$value,
         join_blocks = function() private$..join_blocks$value,
+        plot_width = function() private$..plot_width$value,
+        font_size = function() private$..font_size$value,
         y_label = function() private$..y_label$value,
         y_units = function() private$..y_units$value,
         x_label = function() private$..x_label$value,
@@ -216,6 +230,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..pal = NA,
         ..tech_reps = NA,
         ..join_blocks = NA,
+        ..plot_width = NA,
+        ..font_size = NA,
         ..y_label = NA,
         ..y_units = NA,
         ..x_label = NA,
@@ -328,6 +344,8 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param pal .
 #' @param tech_reps .
 #' @param join_blocks .
+#' @param plot_width .
+#' @param font_size .
 #' @param y_label .
 #' @param y_units .
 #' @param x_label .
@@ -366,6 +384,8 @@ PTM <- function(
     pal = "pal_okabe_ito",
     tech_reps = FALSE,
     join_blocks = FALSE,
+    plot_width = 400,
+    font_size = 12,
     y_label,
     y_units,
     x_label,
@@ -408,6 +428,8 @@ PTM <- function(
         pal = pal,
         tech_reps = tech_reps,
         join_blocks = join_blocks,
+        plot_width = plot_width,
+        font_size = font_size,
         y_label = y_label,
         y_units = y_units,
         x_label = x_label,

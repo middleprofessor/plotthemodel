@@ -159,6 +159,16 @@ options:
       type: Bool
       default: false
 
+    - name: plot_width
+      title: Plot width
+      type: Integer
+      default: 400
+      
+    - name: font_size
+      title: Font size
+      type: Integer
+      default: 12
+      
     - name: y_label
       title: y-axis label
       type: String
