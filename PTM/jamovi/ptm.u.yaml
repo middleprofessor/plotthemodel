@@ -119,6 +119,12 @@ children:
         margin: large
         children:
           - type: TextBox
+            name: plot_width
+            format: number
+          - type: TextBox
+            name: plot_height
+            format: number
+          - type: TextBox
             name: font_size
             format: number
           - type: TextBox
@@ -133,9 +139,3 @@ children:
           - type: TextBox
             name: rescale
             format: number
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: TextBox
-        name: plot_width
-        format: number

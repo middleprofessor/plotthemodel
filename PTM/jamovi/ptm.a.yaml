@@ -164,6 +164,11 @@ options:
       type: Integer
       default: 400
       
+    - name: plot_height
+      title: Plot height
+      type: Integer
+      default: 300
+      
     - name: font_size
       title: Font size
       type: Integer

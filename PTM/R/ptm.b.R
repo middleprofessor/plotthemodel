@@ -7,9 +7,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
   private = list(
     .init = function(){
       # https://forum.jamovi.org/viewtopic.php?t=472
-     self$results$plot$setSize(self$options$plot_width, 300)
-#      self$results$plot$setSize(500, 400)
-      #      self$results$plot$setSize(self$options$width, self$options$height)
+     self$results$plot$setSize(self$options$plot_width, self$options$plot_height)
     },
     .run = function() {
       
@@ -499,6 +497,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           as.integer()
         rescale_val <- ifelse(is.null(self$options$rescale), 1, self$options$rescale)
         if(rescale_val == ""){rescale_val <- 1}
+        font_size_val <- ifelse(is.null(self$options$font_size), 12, self$options$font_size)
+        if(font_size_val == ""){font_size_val <- 12}
         
  
         # get the plot!
@@ -514,7 +514,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                             palette = palette_val,
                             y_label = y_label_val,
                             y_units = y_units_val,
-                            x_axis_labels = x_label_val)
+                            x_axis_labels = x_label_val,
+                            font_size = font_size_val)
         print(gg)
         TRUE       
       }
