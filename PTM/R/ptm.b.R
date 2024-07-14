@@ -90,14 +90,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       # response variable type
       y <- self$data[, response_label]
       y_type <- "character"
-      y_family <- "normal"
-      y_family_long <- "Normal"
       if(length(unique(y)) == 2){
         y_type <- "binary"
       }
       if(y_type != "binary"){
         if(min(y) >= 0 & max(y) <= 1){
           y_type <- "proportion"
+          y_family <- "normal"
+          y_family_long <- "GLM Offset"
         }
         if(all(round(y, 0) == y) & min(y) >= 0){
           y_type <- "count"
