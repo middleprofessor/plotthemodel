@@ -29,6 +29,15 @@ options:
       title: Nest ID
       type: Variable
 
+    - name: covariate_id
+      title: Covariate
+      type: Variable
+
+    - name: offset
+      title: Offset the covariate
+      type: Bool
+      default: false
+      
     - name: design
       title: Experimental Design
       type: List

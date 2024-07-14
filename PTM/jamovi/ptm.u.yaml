@@ -43,6 +43,18 @@ children:
             name: nest_id
             maxItemCount: 1
             isTarget: true
+      - type: TargetLayoutBox
+        label: Covariate
+        children:
+          - type: VariablesListBox
+            name: covariate_id
+            maxItemCount: 1
+            isTarget: true
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: CheckBox
+        name: offset
   - name: experimental_design
     type: CollapseBox
     label: Experimental Design

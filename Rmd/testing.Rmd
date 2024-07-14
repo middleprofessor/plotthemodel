@@ -404,3 +404,43 @@ plot_response(m1,
 
 ```
 
+# figure 2d
+
+```{r}
+data_from <- "data from"
+data_folder <- "Inhibition of fatty acid oxidation enables heart regeneration in adult mice"
+file_path <- here(data_from, data_folder, "Fig2d-proportion - Inhibition of fatty acid oxidation enables heart regeneration in adult mice.xlsx")
+fig2d <- read_xlsx(file_path) |>
+    data.table()
+
+model_dat <- create_model_data(
+  data = fig2d,
+  response_label = "fibrotic_area",
+  factor1_label = "genotype",
+  factor2_label = "factor2_label",
+  block_label = "block_label",
+  nest_label = "nest_label",
+  cov_label = "heart_area",
+  two_factors = FALSE,
+  include_block = FALSE,
+  include_nest = FALSE,
+  include_cov = TRUE
+)
+
+m1 <- glm(fibrotic_area ~ genotype + offset(log(heart_area)),
+          family = Gamma(link = "log"),
+          data = fig2d)
+m1_emm <- emmeans(m1, specs = "genotype", type = "response")
+m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+plot_response(m1, m1_emm, m1_pairs)
+
+m1 <- lm(fibrotic_area_proportion ~ genotype,
+          data = fig2d)
+m1_emm <- emmeans(m1, specs = "genotype", type = "response")
+m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+plot_response(m1, m1_emm, m1_pairs)
+
+```
+

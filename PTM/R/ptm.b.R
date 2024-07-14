@@ -29,6 +29,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       two_factors <- ifelse(is.null(self$options$factor2), FALSE, TRUE)
       include_block <- ifelse(is.null(self$options$block), FALSE, TRUE)
       include_nest <- ifelse(is.null(self$options$nest_id), FALSE, TRUE)
+      include_cov <- ifelse(is.null(self$options$covariate_id), FALSE, TRUE)
       response_label <- self$options$dep
       factor1_label <- self$options$factor1
       factor2_label <- ifelse(two_factors == TRUE,
@@ -40,9 +41,15 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       nest_label <- ifelse(include_nest == TRUE,
                            self$options$nest_id,
                            NA)
+      cov_label <- ifelse(include_cov == TRUE,
+                           self$options$covariate_id,
+                           NA)
       subplot_item <- self$options$subplot
       # **** need to create subplot_label for SPD to work!
       
+      # is covariate an offset?
+      cov_is_offset <- ifelse(self$options$offset == TRUE, TRUE, FALSE)
+
       # model_options
       the_design <- self$options$design
       the_model <- self$options$model
@@ -83,6 +90,8 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       # response variable type
       y <- self$data[, response_label]
       y_type <- "character"
+      y_family <- "normal"
+      y_family_long <- "Normal"
       if(length(unique(y)) == 2){
         y_type <- "binary"
       }
@@ -219,9 +228,11 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                                         factor2_label,
                                         block_label,
                                         nest_label,
+                                        cov_label,
                                         two_factors,
                                         include_block,
-                                        include_nest
+                                        include_nest,
+                                        include_cov
         )
       }
       
@@ -230,7 +241,6 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         # get formulas
         if(two_factors == FALSE){
           fixed_part <- factor1_label
-          formula_string <- paste(response_label, "~", fixed_part)
           spec_list <- factor1_label
           if(include_block == FALSE & include_nest == FALSE){
             if(length(levels(model_data$factor_1)) == 2){
@@ -241,12 +251,22 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
           }
           total_levels <- length(levels(model_data$factor_1))
         }else{
-          fixed_part <- paste(factor1_label, " * ", factor2_label)
-          formula_string <- paste(response_label, "~", fixed_part)
+          fixed_part <- paste(factor1_label, "*", factor2_label)
           spec_list <- c(factor1_label, factor2_label)
           total_levels <- length(levels(model_data$factor_1)) +
             length(levels(model_data$factor_2))
         }
+        
+        # add covariate
+        if(include_cov == TRUE){
+          if(cov_is_offset == TRUE){
+            fixed_part <- paste0(fixed_part, " + offset(log(", cov_label, "))")
+          }else{
+            fixed_part <- paste0(fixed_part, " + ", cov_label)
+          }
+        }
+        
+        formula_string <- paste(response_label, "~", fixed_part)
         
         # don't allow lmm/aov_4 if there is no block data
         if(the_model == "lmer" & include_block == FALSE & include_nest == FALSE){

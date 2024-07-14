@@ -11,6 +11,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             factor2 = NULL,
             block = NULL,
             nest_id = NULL,
+            covariate_id = NULL,
+            offset = FALSE,
             design = "crd",
             subplot = "subplot.eq.1",
             model = "lm",
@@ -53,6 +55,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..nest_id <- jmvcore::OptionVariable$new(
                 "nest_id",
                 nest_id)
+            private$..covariate_id <- jmvcore::OptionVariable$new(
+                "covariate_id",
+                covariate_id)
+            private$..offset <- jmvcore::OptionBool$new(
+                "offset",
+                offset,
+                default=FALSE)
             private$..design <- jmvcore::OptionList$new(
                 "design",
                 design,
@@ -171,6 +180,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..factor2)
             self$.addOption(private$..block)
             self$.addOption(private$..nest_id)
+            self$.addOption(private$..covariate_id)
+            self$.addOption(private$..offset)
             self$.addOption(private$..design)
             self$.addOption(private$..subplot)
             self$.addOption(private$..model)
@@ -198,6 +209,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         factor2 = function() private$..factor2$value,
         block = function() private$..block$value,
         nest_id = function() private$..nest_id$value,
+        covariate_id = function() private$..covariate_id$value,
+        offset = function() private$..offset$value,
         design = function() private$..design$value,
         subplot = function() private$..subplot$value,
         model = function() private$..model$value,
@@ -224,6 +237,8 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..factor2 = NA,
         ..block = NA,
         ..nest_id = NA,
+        ..covariate_id = NA,
+        ..offset = NA,
         ..design = NA,
         ..subplot = NA,
         ..model = NA,
@@ -339,6 +354,8 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param factor2 .
 #' @param block .
 #' @param nest_id .
+#' @param covariate_id .
+#' @param offset .
 #' @param design .
 #' @param subplot .
 #' @param model .
@@ -380,6 +397,8 @@ PTM <- function(
     factor2,
     block,
     nest_id,
+    covariate_id,
+    offset = FALSE,
     design = "crd",
     subplot = "subplot.eq.1",
     model = "lm",
@@ -409,6 +428,7 @@ PTM <- function(
     if ( ! missing(factor2)) factor2 <- jmvcore::resolveQuo(jmvcore::enquo(factor2))
     if ( ! missing(block)) block <- jmvcore::resolveQuo(jmvcore::enquo(block))
     if ( ! missing(nest_id)) nest_id <- jmvcore::resolveQuo(jmvcore::enquo(nest_id))
+    if ( ! missing(covariate_id)) covariate_id <- jmvcore::resolveQuo(jmvcore::enquo(covariate_id))
     if (missing(data))
         data <- jmvcore::marshalData(
             parent.frame(),
@@ -416,7 +436,8 @@ PTM <- function(
             `if`( ! missing(factor1), factor1, NULL),
             `if`( ! missing(factor2), factor2, NULL),
             `if`( ! missing(block), block, NULL),
-            `if`( ! missing(nest_id), nest_id, NULL))
+            `if`( ! missing(nest_id), nest_id, NULL),
+            `if`( ! missing(covariate_id), covariate_id, NULL))
 
 
     options <- PTMOptions$new(
@@ -425,6 +446,8 @@ PTM <- function(
         factor2 = factor2,
         block = block,
         nest_id = nest_id,
+        covariate_id = covariate_id,
+        offset = offset,
         design = design,
         subplot = subplot,
         model = model,
