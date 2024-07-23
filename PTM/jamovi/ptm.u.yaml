@@ -55,6 +55,10 @@ children:
     children:
       - type: CheckBox
         name: offset
+      - type: CheckBox
+        name: log_covariate
+      - type: CheckBox
+        name: mb_hints
   - name: experimental_design
     type: CollapseBox
     label: Experimental Design
@@ -87,8 +91,6 @@ children:
         children:
           - type: ComboBox
             name: family
-      - type: CheckBox
-        name: mb_hints
       - type: CheckBox
         name: check_the_model
   - name: contrasts_picker

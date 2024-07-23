@@ -435,12 +435,52 @@ m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
   summary(infer = TRUE)
 plot_response(m1, m1_emm, m1_pairs)
 
-m1 <- lm(fibrotic_area_proportion ~ genotype,
+m1 <- glm(fibrotic_area ~ genotype + log(heart_area),
+          family = Gamma(link = "log"),
           data = fig2d)
 m1_emm <- emmeans(m1, specs = "genotype", type = "response")
 m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
   summary(infer = TRUE)
 plot_response(m1, m1_emm, m1_pairs)
 
+m1 <- lm(fibrotic_area ~ genotype + log(heart_area),
+          data = fig2d)
+m1_emm <- emmeans(m1, specs = "genotype", type = "response")
+m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+plot_response(m1, m1_emm, m1_pairs)
+
+m1 <- lm(log(fibrotic_area) ~ genotype + log(heart_area),
+          data = fig2d)
+m1_emm <- emmeans(m1, specs = "genotype", type = "response")
+m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+plot_response(m1, m1_emm, m1_pairs)
+
+m1 <- lm(fibrotic_area ~ genotype + heart_area,
+          data = fig2d)
+m1_emm <- emmeans(m1, specs = "genotype", type = "response")
+m1_pairs <- contrast(m1_emm, method = "revpairwise") |>
+  summary(infer = TRUE)
+
+
+fig2d[, yhat := predict(m1)]
+ggplot(data = fig2d,
+       aes(x = heart_area,
+           y = fibrotic_area)) +
+  geom_line(aes(y = yhat))
+
+n <- 20
+
+x1 <- rnorm(n); x2 <- rnorm(n)
+y1 <- 2 * x1 + rnorm(n)
+y2 <- 3 * x2 + (2 + rnorm(n))
+A <- as.factor(rep(c(1, 2), each = n))
+df <- data.frame(x = c(x1, x2), y = c(y1, y2), A = A)
+fm <- lm(y ~ x + A, data = df)
+
+p <- ggplot(data = cbind(df, pred = predict(fm)),
+  aes(x = x, y = y, color = A))
+p + geom_point() + geom_line(aes(y = pred))
 ```
 

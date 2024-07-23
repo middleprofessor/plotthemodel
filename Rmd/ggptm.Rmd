@@ -858,6 +858,107 @@ plot_response <- function(m1,
 }
 ```
 
+# geom_ancova
+
+
+```{r}
+geom_ancova <- function(m1){
+  geom_smooth(method = "lm",
+              se = FALSE,
+              mapping = aes(y = predict(m1, type = "response"))
+  )
+}
+
+```
+
+# Plot the ANCOVA
+
+```{r}
+
+plot_the_ancova_model <- function(m1, m1_emm, m1_pairs){
+  
+  ptm <- get_ptm_parameters(m1, m1_pairs)
+  ptm$show_nest <- show_nest_data
+  if(!is.na(nest_id)){ptm$nest_id <- nest_id}
+  gg_data <- create_plot_data(m1, ptm)
+  gg_emm <- create_emm_data(m1_emm, ptm)
+  ptm$plot_factor_levels <- gg_emm[, plot_factor] |> as.character()
+  gg_pairs <- create_pairs_data(m1_pairs, hide_pairs, ptm)
+  if(!is.na(nest_id)){
+    gg_nest <- create_nest_data(m1, gg_data, ptm)
+  }else{
+    gg_nest <- NA
+  }
+  gg_pairs <- add_y_pos(gg_pairs, gg_data, gg_emm, gg_nest, ptm)
+  if(is.na(y_label)){y_label <- ptm$response_label}
+
+  gg <- ggplot(data = gg_data,
+               aes(x = get(ptm$covariate),
+                   y = y,
+                   color = plot_factor)) +
+    geom_point(size = 2) +
+    geom_ancova(m1)
+
+  # add some color
+  if(palette != "pal_ggplot"){
+    gg <- gg +
+      scale_color_manual(values = get(palette))
+  }
+  
+  # add p-value brackets
+  # gg <- gg +
+  #   stat_pvalue_manual(gg_pairs,
+  #                      label = "p.print",
+  #                      y.position = "y_pos",
+  #                      # xmin = "minx",
+  #                      # xmax = "maxx",
+  #                      size = 4,
+  #                      tip.length = 0.01)
+  
+  # add x-axis label
+  gg <- gg +
+    xlab(ptm$covariate)
+  
+  # add y-axis label
+  if(rescale != 1){
+    if(rescale > 1000){
+      rescale_str <- sci_to_10(rescale)
+    }else{
+      rescale_str <- as.character(rescale)
+    }
+    if(is.na(y_units)){
+      y_units <- paste0("X", rescale_str)
+    }else{
+      y_units <- paste0("X", rescale_str, " ", y_units)
+    }
+  }
+  # if % is in label then
+  if(any(str_detect(y_label, "%"))){
+    gg <- gg + ylab(y_label)
+  }else{
+    y_label <- str_replace(y_label, " ", "~")
+    y_units <- str_replace(y_units, " ", "~")
+    if(is.na(y_units)){
+      gg <- gg +
+        ylab(bquote(.(rlang::parse_expr(paste(y_label)))))
+    }else{
+      gg <- gg +
+        ylab(bquote(.(rlang::parse_expr(paste(y_label)))
+                    ~(.(rlang::parse_expr(paste(y_units))))))
+    }
+  }
+  
+  # add theme
+  gg <- gg + theme_pubr(base_size = font_size)
+  
+
+  return(gg)
+}
+
+
+```
+
+
 # output R file 
 
 ```{r output-as-R-file}

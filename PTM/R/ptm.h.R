@@ -13,12 +13,13 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             nest_id = NULL,
             covariate_id = NULL,
             offset = FALSE,
+            log_covariate = FALSE,
+            mb_hints = FALSE,
             design = "crd",
             subplot = "subplot.eq.1",
             model = "lm",
             family = "norm",
-            mb_hints = FALSE,
-            check_the_model = TRUE,
+            check_the_model = FALSE,
             trtvsctrl = FALSE,
             simple = TRUE,
             adjust = "default",
@@ -62,6 +63,14 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "offset",
                 offset,
                 default=FALSE)
+            private$..log_covariate <- jmvcore::OptionBool$new(
+                "log_covariate",
+                log_covariate,
+                default=FALSE)
+            private$..mb_hints <- jmvcore::OptionBool$new(
+                "mb_hints",
+                mb_hints,
+                default=FALSE)
             private$..design <- jmvcore::OptionList$new(
                 "design",
                 design,
@@ -97,18 +106,16 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 family,
                 options=list(
                     "norm",
-                    "binom",
+                    "qpoisson",
                     "negbin",
-                    "gamma"),
+                    "gamma",
+                    "qbinom",
+                    "binom"),
                 default="norm")
-            private$..mb_hints <- jmvcore::OptionBool$new(
-                "mb_hints",
-                mb_hints,
-                default=FALSE)
             private$..check_the_model <- jmvcore::OptionBool$new(
                 "check_the_model",
                 check_the_model,
-                default=TRUE)
+                default=FALSE)
             private$..trtvsctrl <- jmvcore::OptionBool$new(
                 "trtvsctrl",
                 trtvsctrl,
@@ -182,11 +189,12 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..nest_id)
             self$.addOption(private$..covariate_id)
             self$.addOption(private$..offset)
+            self$.addOption(private$..log_covariate)
+            self$.addOption(private$..mb_hints)
             self$.addOption(private$..design)
             self$.addOption(private$..subplot)
             self$.addOption(private$..model)
             self$.addOption(private$..family)
-            self$.addOption(private$..mb_hints)
             self$.addOption(private$..check_the_model)
             self$.addOption(private$..trtvsctrl)
             self$.addOption(private$..simple)
@@ -211,11 +219,12 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         nest_id = function() private$..nest_id$value,
         covariate_id = function() private$..covariate_id$value,
         offset = function() private$..offset$value,
+        log_covariate = function() private$..log_covariate$value,
+        mb_hints = function() private$..mb_hints$value,
         design = function() private$..design$value,
         subplot = function() private$..subplot$value,
         model = function() private$..model$value,
         family = function() private$..family$value,
-        mb_hints = function() private$..mb_hints$value,
         check_the_model = function() private$..check_the_model$value,
         trtvsctrl = function() private$..trtvsctrl$value,
         simple = function() private$..simple$value,
@@ -239,11 +248,12 @@ PTMOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..nest_id = NA,
         ..covariate_id = NA,
         ..offset = NA,
+        ..log_covariate = NA,
+        ..mb_hints = NA,
         ..design = NA,
         ..subplot = NA,
         ..model = NA,
         ..family = NA,
-        ..mb_hints = NA,
         ..check_the_model = NA,
         ..trtvsctrl = NA,
         ..simple = NA,
@@ -356,11 +366,12 @@ PTMBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param nest_id .
 #' @param covariate_id .
 #' @param offset .
+#' @param log_covariate .
+#' @param mb_hints .
 #' @param design .
 #' @param subplot .
 #' @param model .
 #' @param family .
-#' @param mb_hints .
 #' @param check_the_model .
 #' @param trtvsctrl .
 #' @param simple .
@@ -399,12 +410,13 @@ PTM <- function(
     nest_id,
     covariate_id,
     offset = FALSE,
+    log_covariate = FALSE,
+    mb_hints = FALSE,
     design = "crd",
     subplot = "subplot.eq.1",
     model = "lm",
     family = "norm",
-    mb_hints = FALSE,
-    check_the_model = TRUE,
+    check_the_model = FALSE,
     trtvsctrl = FALSE,
     simple = TRUE,
     adjust = "default",
@@ -448,11 +460,12 @@ PTM <- function(
         nest_id = nest_id,
         covariate_id = covariate_id,
         offset = offset,
+        log_covariate = log_covariate,
+        mb_hints = mb_hints,
         design = design,
         subplot = subplot,
         model = model,
         family = family,
-        mb_hints = mb_hints,
         check_the_model = check_the_model,
         trtvsctrl = trtvsctrl,
         simple = simple,

@@ -38,6 +38,16 @@ options:
       type: Bool
       default: false
       
+    - name: log_covariate
+      title: Log the covariate (auto with GLM log link)
+      type: Bool
+      default: false
+      
+    - name: mb_hints
+      title: Show only corrective hints
+      type: Bool
+      default: false
+
     - name: design
       title: Experimental Design
       type: List
@@ -92,23 +102,22 @@ options:
       options:
         - title: Normal
           name:  norm
-        - title: Binomial (success/fail)
-          name:  binom
+        - title: Quasipoisson (counts)
+          name:  qpoisson
         - title: Negative Binomial (counts)
           name:  negbin
         - title: Gamma (continuous)
           name:  gamma
+        - title: Quasibinomial (proportion)
+          name:  qbinom
+        - title: Binomial (success/fail)
+          name:  binom
       default: norm
 
-    - name: mb_hints
-      title: Show only corrective hints
+    - name: check_the_model
+      title: Check the Model (uncheck to Plot the Model!)
       type: Bool
       default: false
-
-    - name: check_the_model
-      title: Check the Model (uncheck if plot spins for more than few seconds)
-      type: Bool
-      default: true
 
     - name: trtvsctrl
       title: Treatment vs. Control (one factor only)

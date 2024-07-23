@@ -49,7 +49,9 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       
       # is covariate an offset?
       cov_is_offset <- ifelse(self$options$offset == TRUE, TRUE, FALSE)
-
+      # is covariate an offset?
+      cov_is_logged <- ifelse(self$options$log_covariate == TRUE, TRUE, FALSE)
+      
       # model_options
       the_design <- self$options$design
       the_model <- self$options$model
@@ -261,8 +263,14 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         if(include_cov == TRUE){
           if(cov_is_offset == TRUE){
             fixed_part <- paste0(fixed_part, " + offset(log(", cov_label, "))")
+            plot_notes_string <- paste0("The response is rescaled as a percent of a whole.\n",
+                                       plot_notes_string)
           }else{
-            fixed_part <- paste0(fixed_part, " + ", cov_label)
+            if(cov_is_logged == TRUE){
+              fixed_part <- paste0(fixed_part, " + log(", cov_label, ")")
+            }else{
+              fixed_part <- paste0(fixed_part, " + ", cov_label)
+            }
           }
         }
         
@@ -453,35 +461,39 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
       # objects for response plot
       if(working_model == TRUE){
         image <- self$results$plot
-        # image$setState(plotData)
         model_list <- list(m1, m1_emm, m1_pairs)
         image$setState(model_list)
+
+        # image_check <- self$results$check
+        # model_list <- list(m1)
+        # image_check$setState(model_list)
+        
       }else{
         model_list <- NULL
       }
       
       # objects for check the model plot
-      m1_check <- NULL
-      check_m1 <- NULL
-      if(working_model == TRUE){
-        if(check_the_model == TRUE){
-          m1_check <- m1
-          # check_m1 <- simulateResiduals(fittedModel = m1_check,
-          #                               n = 250,
-          #                               refit = FALSE)
-          # gg_check <- plot(check_m1)
-        }else{
-          m1_check <- NULL
-          gg_check <- NULL
-          check_m1 <- NULL
-        }
-        if(model_class == "anova"){m1_check <- NULL}
-        do_model_check <- TRUE
-        if(do_model_check == TRUE){
-          image_check <- self$results$check
-          image_check$setState(m1_check)
-        }
-      }
+      # m1_check <- NULL
+      # check_m1 <- NULL
+      # if(working_model == TRUE){
+      #   if(check_the_model == TRUE){
+      #     m1_check <- m1
+      #     # check_m1 <- simulateResiduals(fittedModel = m1_check,
+      #     #                               n = 250,
+      #     #                               refit = FALSE)
+      #     # gg_check <- plot(check_m1)
+      #   }else{
+      #     m1_check <- NULL
+      #     gg_check <- NULL
+      #     check_m1 <- NULL
+      #   }
+      #   if(model_class == "anova"){m1_check <- NULL}
+      #   do_model_check <- TRUE
+      #   if(do_model_check == TRUE){
+      #     image_check <- self$results$check
+      #     image_check$setState(m1_check)
+      #   }
+      # }
       
       ### DEBUG ONLY remove this when 
 #      m1_check <- NULL
@@ -493,6 +505,10 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         m1 <- model_list[[1]]
         m1_emm <- model_list[[2]]
         m1_pairs <- model_list[[3]]
+ 
+        check_the_model <- ifelse(self$options$check_the_model == TRUE, TRUE, FALSE)
+        the_model <- self$options$model
+        family_class <- ifelse(the_model == "glm" | the_model == "glmer", "generalized", "general")
         
         # plot features
         join_blocks_val <- ifelse(self$options$join_blocks == TRUE, TRUE, FALSE)
@@ -536,32 +552,42 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
                             y_units = y_units_val,
                             x_axis_labels = x_label_val,
                             font_size = font_size_val)
+        
+        if(check_the_model == TRUE){
+          if(family_class == "generalized"){
+            gg <- ggcheck_the_glm_qq(m1)
+          }else{
+            gg <- ggcheck_the_model(m1)
+          }
+          # check_m1 <- simulateResiduals(fittedModel = m1,
+          #                               n = 250,
+          #                               refit = FALSE)
+          # gg <- plot(check_m1)
+        }
         print(gg)
         TRUE       
       }
     },
-    .plot_check=function(image_check, ...){
+    .plot_check=function(image, ...){
       # notes:
       # 1. sending m1 is infinitely slow for mixed models unless really small
       # 2. sending check_m1 is infinitely slow for mixed models unless really small
       # 2. sending gg_check plots in a quartz window because plot statement in main function
       #    and crashes jamovi
       # check the model
-      m1_check <- image_check$state
-      if(!is.null(m1_check)){
+      model_list <- image$state
+      if(!is.null(model_list)){
+        m1 <- model_list[[1]]
+        # m1_emm <- model_list[[2]]
+        # m1_pairs <- model_list[[3]]
         # check_m1 <- simulateResiduals(fittedModel = m1_check,
         #                               n = 250,
         #                               refit = FALSE)
         # gg_check <- plot(check_m1)
-        gg_check <- ggcheck_the_model(m1_check)
+        # gg_check <- ggcheck_the_model(m1_check)
+        gg_check <- ggqqplot(m1$residuals)
         print(gg_check)
         TRUE
       }
-      # check_m1 <- image_check$state
-      # if(!is.null(check_m1)){
-      #   gg_check <- plot(check_m1)
-      #   print(gg_check)
-      #   TRUE
-      # }
     })
 )
