@@ -1,5 +1,6 @@
 
 # This file is a generated template, your changes will not be overwritten
+# jmvtools::install() to run
 
 PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
   "PTMClass",
@@ -103,8 +104,12 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         }
         if(all(round(y, 0) == y) & min(y) >= 0){
           y_type <- "count"
-          y_family_long <- "Negative Binomial or Quasipoisson"
-          y_family <- "negbin"
+          y_family_long <- "Quasipoisson or Negative Binomial"
+          if(model_family == "negbin"){
+            y_family <- "negbin"
+          }else{
+            y_family <- "qpoisson"
+          }
         }
         if(any(round(y, 0) != y) & min(y) > 0 & max(y) > 1){
           y_type <- "positive continuous"
@@ -244,7 +249,7 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         if(two_factors == FALSE){
           fixed_part <- factor1_label
           spec_list <- factor1_label
-          if(include_block == FALSE & include_nest == FALSE){
+          if(include_block == FALSE & include_nest == FALSE & family_class == "general"){
             if(length(levels(model_data$factor_1)) == 2){
               model_notes_string <- "This LM is equivalent to a Student's (Independent Samples) t-test!"
             }else{
@@ -356,9 +361,15 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         # print model formula
         family_string <- ""
         if(family_class == "generalized"){
+          if(model_family == "qpoisson"){
+            family_string <- ', family = quasipoisson(link = "log")'
+          }
           if(model_family == "gamma"){
             family_string <- ', family = Gamma(link = "log")'
           }
+        }
+        if(the_model == "glm" & model_family == "negbin"){
+          the_model <- "glm.nb"
         }
         model_string <- paste0(the_model, "(", formula_string, family_string, ")")
       }
@@ -371,11 +382,20 @@ PTMClass <- if (requireNamespace('jmvcore', quietly=TRUE)) R6::R6Class(
         if(the_model == "lm" & model_family == "norm"){
           m1 <- lm(model_formula, model_data)
         }
+        if(the_model == "glm" & model_family == "qpoisson"){
+          m1 <- glm(model_formula, family = quasipoisson(link = "log"), model_data)
+        }
+        if(the_model == "glm.nb" & model_family == "negbin"){
+          m1 <- glm.nb(model_formula, model_data)
+        }
         if(the_model == "glm" & model_family == "gamma"){
           m1 <- glm(model_formula, family = Gamma(link = "log"), model_data)
         }
         if(the_model == "lmer" & model_family == "norm"){
           m1 <- lmer(model_formula, model_data)
+        }
+        if(the_model == "glmer" & model_family == "qpoisson"){
+          m1 <- glmer(model_formula, family = quasipoisson(link = "log"), model_data)
         }
         if(the_model == "glmer" & model_family == "gamma"){
           m1 <- glmer(model_formula, family = Gamma(link = "log"), model_data)

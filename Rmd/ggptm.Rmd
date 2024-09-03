@@ -452,6 +452,9 @@ create_emm_data <- function(m1_emm, ptm){
   if("response" %in% names(gg_emm)){ # generalized linear models
     gg_emm[, mean := response]
   }
+  if("rate" %in% names(gg_emm)){ # generalized linear models
+    gg_emm[, mean := rate]
+  }
   if("lower.CL" %in% names(gg_emm)){
     gg_emm[, lo := lower.CL]
     gg_emm[, hi := upper.CL]
@@ -608,6 +611,7 @@ get_ptm_parameters <- function(m1, m1_pairs){
   }
   ptm$factor1_label <- predictors_fixed[1]
   ptm$factor2_label <- predictors_fixed[2]
+
   # is factor2 a covariate?
   ptm$covariate <- NA
   ptm$offset <- FALSE
@@ -626,6 +630,9 @@ get_ptm_parameters <- function(m1, m1_pairs){
   random <- find_random(m1)$random
   ptm$random <- ifelse(is.null(random), NA, random)
   
+  factor_list <- c(ptm$factor1_label, ptm$factor2_label, ptm$random) |>
+    na.omit()
+  
   # nesting or blocked?
   if(is.na(ptm$random)){
     ptm$nested <- FALSE
@@ -633,8 +640,8 @@ get_ptm_parameters <- function(m1, m1_pairs){
     ptm$blocked <- FALSE
     ptm$block_id <- NA
   }else{
-    counts <- gg_data[!is.na(get(ptm$response)), .(N = .N),
-                      by = c(ptm$factor1_label, ptm$factor2_label, ptm$random)]
+    counts <- gg_data[!is.na(get(ptm$response_label)), .(N = .N),
+                      by = factor_list]
     ptm$nested <- ifelse(any(counts$N > 1), TRUE, FALSE) # could be block block if...
     if(ptm$nest == TRUE){
       ptm$nest_id <- ptm$random
@@ -672,6 +679,7 @@ plot_response <- function(m1,
                           nest_id = NA, # this is the column containing the cluster
                           jitter_spread = 0.8,
                           jitter_width = 0.2,
+                          jitter_type = "density", # "none", "density", "jitter"
                           palette = "pal_ggplot",
                           y_label = NA,
                           y_units = NA,
@@ -761,14 +769,27 @@ plot_response <- function(m1,
   
   if(ptm$nested == FALSE){
     # experimental reps
-    gg <- gg +
-      geom_jitter(data = gg_data,
+    if(jitter_type == "density"){
+      gg <- gg +
+        geom_sina(data = gg_data,
                   aes(x = plot_factor_id,
                       y = y,
                       color = factor_1),
-                  width = jitter_width,
+                  scale = "width",
+                  maxwidth = jitter_width,
                   size = 4,
                   show.legend = FALSE)
+    }
+    if(jitter_type == "jitter"){
+      gg <- gg +
+        geom_jitter(data = gg_data,
+                    aes(x = plot_factor_id,
+                        y = y,
+                        color = factor_1),
+                    width = jitter_width,
+                    size = 4,
+                    show.legend = FALSE)
+    }
   }
   
   # add nest means = experimental reps
@@ -832,8 +853,8 @@ plot_response <- function(m1,
   if(any(str_detect(y_label, "%"))){
     gg <- gg + ylab(y_label)
   }else{
-    y_label <- str_replace(y_label, " ", "~")
-    y_units <- str_replace(y_units, " ", "~")
+    y_label <- str_replace_all(y_label, " ", "~")
+    y_units <- str_replace_all(y_units, " ", "~")
     if(is.na(y_units)){
       gg <- gg +
         ylab(bquote(.(rlang::parse_expr(paste(y_label)))))
